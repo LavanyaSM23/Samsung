@@ -1,9 +1,9 @@
 """
 streamlit_app.py
-NutriSense AI — Phase 11: Production Frontend Application
+NutriSense AI — Premium Health-Tech Nutrition & Meal Intelligence Platform
 
 Sections:
-1. 🏠 Home                   – Mission, live database metrics, guardrails, quick-nav
+1. 🏠 Home                   – Executive overview, live database metrics, guardrails, quick actions
 2. 👤 User Profile           – Anthropometrics, South-Asian BMI, Mifflin-St Jeor TDEE, preferences
 3. 📸 Log a Meal             – Image upload → AI prediction → portion scaling → safety check →
                                suitability score → nutrient breakdown → alternatives → DB save
@@ -13,6 +13,7 @@ Sections:
                                grocery list, recipe instructions
 6. 📊 Nutrition Dashboard    – Meal history, consumed-vs-target, macro splits, 7-day trend,
                                nutrient-gap insights
+7. 🏷️ Packaged Food Scanner  – Packaged food nutrition label analysis, OCR extraction & ICMR scoring
 """
 
 from __future__ import annotations
@@ -35,6 +36,251 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ── Premium Health-Tech CSS Injection ─────────────────────────────────────────
+st.markdown("""
+<style>
+/* Clean Premium Health-Tech Design System */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --primary-emerald: #059669;
+  --primary-emerald-hover: #047857;
+  --primary-light: #ECFDF5;
+  --primary-border: #A7F3D0;
+  --bg-app: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --text-charcoal: #0F172A;
+  --text-body: #334155;
+  --text-muted: #64748B;
+  --border-subtle: #E2E8F0;
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  --radius-card: 14px;
+  --radius-pill: 9999px;
+}
+
+html, body, [class*="css"] {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-charcoal);
+  background-color: var(--bg-app);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', sans-serif !important;
+  color: var(--text-charcoal) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Sidebar Styling */
+section[data-testid="stSidebar"] {
+  background-color: #FFFFFF !important;
+  border-right: 1px solid var(--border-subtle) !important;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
+}
+
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2 {
+  color: var(--primary-emerald) !important;
+  font-size: 1.45rem !important;
+  margin-bottom: 2px !important;
+}
+
+/* Radio buttons in sidebar styled as clean items */
+section[data-testid="stSidebar"] div[role="radiogroup"] > label {
+  background: transparent;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 3px;
+  transition: all 0.15s ease;
+  font-weight: 500;
+  color: var(--text-body);
+}
+
+section[data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+  background: var(--primary-light);
+  color: var(--primary-emerald);
+}
+
+/* Metrics Cards */
+div[data-testid="stMetric"] {
+  background: #FFFFFF !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-card) !important;
+  padding: 16px 20px !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: all 0.2s ease !important;
+}
+
+div[data-testid="stMetric"]:hover {
+  border-color: var(--primary-border) !important;
+  box-shadow: var(--shadow-card) !important;
+  transform: translateY(-1px);
+}
+
+div[data-testid="stMetric"] label {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: var(--text-muted) !important;
+}
+
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+  font-family: 'Outfit', sans-serif !important;
+  font-size: 1.65rem !important;
+  font-weight: 700 !important;
+  color: var(--text-charcoal) !important;
+}
+
+div[data-testid="stMetric"] div[data-testid="stMetricDelta"] {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+}
+
+/* Buttons */
+.stButton > button {
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  padding: 8px 20px !important;
+  transition: all 0.2s ease !important;
+}
+
+.stButton > button[kind="primary"] {
+  background: var(--primary-emerald) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25) !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+  background: var(--primary-emerald-hover) !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35) !important;
+  transform: translateY(-1px);
+}
+
+.stButton > button[kind="secondary"] {
+  background: #FFFFFF !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-body) !important;
+}
+
+.stButton > button[kind="secondary"]:hover {
+  background: var(--bg-app) !important;
+  border-color: #CBD5E1 !important;
+}
+
+/* Form containers */
+[data-testid="stForm"] {
+  background: #FFFFFF !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-card) !important;
+  padding: 24px !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* Progress bar */
+.stProgress > div > div > div > div {
+  background: linear-gradient(90deg, #10B981, #059669) !important;
+  border-radius: var(--radius-pill) !important;
+}
+
+/* Expanders */
+.streamlit-expanderHeader {
+  background: #F8FAFC !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  color: var(--text-charcoal) !important;
+}
+
+/* Custom UI Cards */
+.health-hero {
+  background: linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 50%, #FFFFFF 100%);
+  border: 1px solid #A7F3D0;
+  border-radius: 16px;
+  padding: 24px 28px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.05);
+}
+
+.health-hero h2 {
+  color: #065F46 !important;
+  margin-bottom: 4px !important;
+  font-size: 1.65rem !important;
+}
+
+.health-hero p {
+  color: #334155;
+  font-size: 0.98rem;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-right: 6px;
+  margin-bottom: 4px;
+}
+
+.badge-emerald {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+}
+
+.badge-amber {
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+
+.badge-blue {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
+
+.badge-purple {
+  background: #FAF5FF;
+  color: #7E22CE;
+  border: 1px solid #E9D5FF;
+}
+
+.feature-box {
+  background: #FFFFFF;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.feature-box:hover {
+  border-color: var(--primary-border);
+  box-shadow: var(--shadow-card);
+}
+
+.prediction-card {
+  background: #FFFFFF;
+  border: 1px solid #A7F3D0;
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 8px rgba(5, 150, 105, 0.06);
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ── Workspace root ─────────────────────────────────────────────────────────────
 WORKSPACE_ROOT = Path(__file__).resolve().parent
@@ -201,6 +447,7 @@ with st.sidebar:
         "🔬 Nutrition Analysis",
         "🍽️ Recommendations & Meal Planning",
         "📊 Nutrition Dashboard",
+        "🏷️ Packaged Food Scanner",
     ]
 
     # Handle quick-nav button targets
@@ -239,7 +486,8 @@ with st.sidebar:
         active_user: Optional[Dict] = get_profile(st.session_state["active_user_id"])
         if active_user:
             st.success(f"**{active_user['display_name']}**")
-            goal_lbl = active_user.get("dietary_goal", "general_wellness").replace("_", " ").title()
+            goal_val = active_user.get("dietary_goal") or "general_wellness"
+            goal_lbl = goal_val.replace("_", " ").title()
             st.caption(f"🎯 {goal_lbl}")
             allergens = active_user.get("allergies") or []
             if allergens:
@@ -256,6 +504,34 @@ with st.sidebar:
 # SECTION 1 — HOME
 # ===========================================================================
 if selected_section == "🏠 Home":
+    # Personalized Welcome Hero Card
+    if active_user:
+        user_name = active_user.get("display_name", "Friend")
+        goal_str = (active_user.get("dietary_goal") or "general_wellness").replace("_", " ").title()
+        st.markdown(f"""
+        <div class="health-hero">
+            <h2>Welcome back, {user_name}! 👋</h2>
+            <p>Your personalized Indian nutrition workspace. Backed by ICMR-NIN 2020 RDA & IFCT 2017 standards for clinical accuracy and zero nutrient hallucinations.</p>
+            <div>
+                <span class="badge-pill badge-emerald">🎯 Goal: {goal_str}</span>
+                <span class="badge-pill badge-blue">🥗 South Asian Consensus Standards</span>
+                <span class="badge-pill badge-purple">🛡️ Pre-Ranking Safety Filter Active</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="health-hero">
+            <h2>Welcome to NutriSense AI 🥗</h2>
+            <p>Personalized Indian Nutrition, Visual Food Intelligence & Clinical Diet Planning.</p>
+            <div>
+                <span class="badge-pill badge-emerald">ICMR-NIN 2020</span>
+                <span class="badge-pill badge-blue">MobileNetV2 Vision</span>
+                <span class="badge-pill badge-amber">IFCT 2017 Laboratory DB</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.title("🥗 NutriSense AI")
     st.subheader("Personalized Indian Nutrition, Visual Food Intelligence & Clinical Diet Planning")
 
@@ -275,6 +551,77 @@ if selected_section == "🏠 Home":
     m2.metric("Laboratory Foods", f"{kb_food_count:,}")
     m3.metric("Meals Logged (All Users)", f"{total_logged_meals:,}")
     m4.metric("Registered Profiles", f"{total_profiles:,}")
+
+    # Today's Snapshot for Active User
+    if active_user:
+        st.markdown("---")
+        st.markdown("### Today's Nutrition Progress")
+        today_totals = get_daily_nutrition_totals(active_user["user_id"], target_date=date.today().isoformat(), conn=_db_conn)
+        today_tot = today_totals.get("totals", {})
+        today_tgt = today_totals.get("targets", {})
+
+        c_cons = _safe_float(today_tot.get("calories_kcal"))
+        c_target = _safe_float(today_tgt.get("calories_kcal"), 2000.0)
+        c_pct = _safe_float(today_tgt.get("percent_target_achieved"), 0.0)
+
+        nm1, nm2, nm3, nm4 = st.columns(4)
+        nm1.metric("Calories Consumed", f"{c_cons:.0f} kcal", f"{c_pct:.1f}% of {c_target:.0f} kcal")
+        nm2.metric("Protein", f"{_safe_float(today_tot.get('protein_g')):.1f} g")
+        nm3.metric("Carbohydrates", f"{_safe_float(today_tot.get('carbs_g')):.1f} g")
+        nm4.metric("Dietary Fibre", f"{_safe_float(today_tot.get('fibre_g')):.1f} g")
+
+        # Visual Calorie Progress
+        st.caption(f"Daily Calorie Pacing: {c_cons:.0f} / {c_target:.0f} kcal ({c_pct:.1f}%)")
+        st.progress(min(c_pct / 100.0, 1.0))
+
+    st.markdown("---")
+
+    # Quick Navigation Actions
+    st.markdown("### Quick Navigation & Workflows")
+    qc1, qc2, qc3, qc4 = st.columns(4)
+    with qc1:
+        st.markdown("""
+        <div class="feature-box">
+            <h4>📸 Log a Meal</h4>
+            <p>Upload a food photo for visual AI prediction, portion scaling, and safety verification.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Meal Logger", key="btn_nav_log", use_container_width=True, type="primary"):
+            st.session_state["nav_target"] = "📸 Log a Meal"
+            st.rerun()
+
+    with qc2:
+        st.markdown("""
+        <div class="feature-box">
+            <h4>🏷️ Packaged Scanner</h4>
+            <p>Scan nutrition facts labels, check traffic-light ratings, and spot ultra-processed flags.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Label Scanner", key="btn_nav_scanner", use_container_width=True):
+            st.session_state["nav_target"] = "🏷️ Packaged Food Scanner"
+            st.rerun()
+
+    with qc3:
+        st.markdown("""
+        <div class="feature-box">
+            <h4>🍽️ Meal Planning</h4>
+            <p>Calibrated 4-meal daily plans and 7-day weekly schedules with aggregated grocery lists.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Meal Planner", key="btn_nav_rec", use_container_width=True):
+            st.session_state["nav_target"] = "🍽️ Recommendations & Meal Planning"
+            st.rerun()
+
+    with qc4:
+        st.markdown("""
+        <div class="feature-box">
+            <h4>📊 Dashboard</h4>
+            <p>Analyze consumed-vs-target calories, macro energy distribution, and multi-day trends.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Dashboard", key="btn_nav_dash", use_container_width=True):
+            st.session_state["nav_target"] = "📊 Nutrition Dashboard"
+            st.rerun()
 
     st.markdown("---")
 
@@ -313,22 +660,6 @@ if selected_section == "🏠 Home":
             except Exception:
                 pass
 
-    st.markdown("---")
-    st.markdown("### Quick Navigation")
-    qc1, qc2, qc3, qc4 = st.columns(4)
-    if qc1.button("📸 Log a Meal", use_container_width=True):
-        st.session_state["nav_target"] = "📸 Log a Meal"
-        st.rerun()
-    if qc2.button("👤 User Profile", use_container_width=True):
-        st.session_state["nav_target"] = "👤 User Profile"
-        st.rerun()
-    if qc3.button("🍽️ Recommendations", use_container_width=True):
-        st.session_state["nav_target"] = "🍽️ Recommendations & Meal Planning"
-        st.rerun()
-    if qc4.button("📊 Dashboard", use_container_width=True):
-        st.session_state["nav_target"] = "📊 Nutrition Dashboard"
-        st.rerun()
-
 
 # ===========================================================================
 # SECTION 2 — USER PROFILE
@@ -340,9 +671,9 @@ elif selected_section == "👤 User Profile":
         "All recommendations and suitability scoring adapt dynamically to these settings."
     )
 
-    tab_view, tab_create = st.tabs(["📋 View / Edit Active Profile", "➕ Create New Profile"])
+    tab_view, tab_edit, tab_create = st.tabs(["📋 Active Profile Overview", "✏️ Edit Profile Parameters", "➕ Create New Profile"])
 
-    # ── VIEW / EDIT ──────────────────────────────────────────────────────────
+    # ── VIEW ACTIVE PROFILE ──────────────────────────────────────────────────
     with tab_view:
         if not active_user:
             st.info("No active profile selected. Create one in the **➕ Create New Profile** tab.")
@@ -362,7 +693,7 @@ elif selected_section == "👤 User Profile":
             a3.metric("Height", f"{height:.1f} cm")
             a4.metric("Weight", f"{weight:.1f} kg")
 
-            # BMI
+            # BMI with South Asian Consensus
             try:
                 bmi_res = compute_bmi(height, weight)
                 b1, b2 = st.columns([1, 2])
@@ -417,9 +748,27 @@ elif selected_section == "👤 User Profile":
             except Exception:
                 pass
 
-            st.markdown("---")
-            st.markdown("#### ✏️ Edit Profile Parameters")
+            # Preferences overview
+            st.markdown("#### Health & Dietary Preferences")
+            p_col1, p_col2 = st.columns(2)
+            with p_col1:
+                st.markdown(f"**Primary Goal**: `{(active_user.get('dietary_goal') or 'general_wellness').replace('_', ' ').title()}`")
+                st.markdown(f"**Activity Level**: `{(active_user.get('activity_level') or 'sedentary').replace('_', ' ').title()}`")
+                st.markdown(f"**Preferred Cuisines**: {', '.join(active_user.get('preferred_cuisines') or ['Any'])}")
+            with p_col2:
+                allergies = active_user.get("allergies") or []
+                st.markdown(f"**Zero-Tolerance Allergies**: {', '.join(a.title() for a in allergies) if allergies else 'None declared'}")
+                restrictions = active_user.get("dietary_restrictions") or []
+                st.markdown(f"**Dietary Restrictions**: {', '.join(r.title() for r in restrictions) if restrictions else 'None'}")
+                st.markdown(f"**Kitchen Budget**: `{(active_user.get('budget') or 'medium').title()}`")
 
+    # ── EDIT PROFILE ─────────────────────────────────────────────────────────
+    with tab_edit:
+        if not active_user:
+            st.info("No active profile selected.")
+        else:
+            uid = active_user["user_id"]
+            st.subheader(f"Edit Profile: {active_user['display_name']}")
             with st.form("edit_profile_form", border=True):
                 fe1, fe2, fe3 = st.columns(3)
                 with fe1:
@@ -560,7 +909,7 @@ elif selected_section == "👤 User Profile":
                     st.session_state["confirm_delete_profile"] = False
                     st.rerun()
 
-    # ── CREATE ───────────────────────────────────────────────────────────────
+    # ── CREATE PROFILE ───────────────────────────────────────────────────────
     with tab_create:
         st.subheader("Create a New User Profile")
         with st.form("create_profile_form", border=True):
@@ -667,7 +1016,7 @@ elif selected_section == "📸 Log a Meal":
             uploaded = st.file_uploader("Upload food photo (JPG / PNG)", type=["jpg", "jpeg", "png"])
             if uploaded is not None:
                 selected_image = Image.open(uploaded).convert("RGB")
-                st.image(selected_image, caption="Uploaded Photo", use_container_width=True)
+                st.image(selected_image, caption="Uploaded Photo Preview", use_container_width=True)
 
         elif input_mode == "Select Sample Dish Image":
             sample_files = sorted(SAMPLES_DIR.glob("*.jpg")) if SAMPLES_DIR.exists() else []
@@ -703,12 +1052,22 @@ elif selected_section == "📸 Log a Meal":
                     else:
                         st.error(f"🤖 Uncertain prediction ({conf_pct:.1f}%). Please manually select the correct dish.")
 
+                    # Show top candidate badges
                     if len(infer_top_k) > 1:
-                        with st.expander("📊 All Top Predictions"):
+                        st.markdown("**Top Predictions:**")
+                        cand_cols = st.columns(min(len(infer_top_k[:3]), 3))
+                        for idx, cand in enumerate(infer_top_k[:3]):
+                            with cand_cols[idx]:
+                                st.markdown(f"""
+                                <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:8px; text-align:center;">
+                                    <div style="font-weight:600; font-size:0.85rem; color:#0F172A;">{cand['display_name']}</div>
+                                    <div style="font-size:0.8rem; color:#059669; font-weight:700;">{cand['confidence']*100:.1f}%</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                        with st.expander("📊 All Top Predictions Breakdown"):
                             for cand in infer_top_k:
-                                st.markdown(
-                                    f"- **{cand['display_name']}** — {cand['confidence']*100:.1f}%"
-                                )
+                                st.markdown(f"- **{cand['display_name']}** — {cand['confidence']*100:.1f}%")
                 except Exception as ex:
                     st.warning(f"Vision model unavailable: {ex}. Please select the food manually below.")
 
@@ -726,11 +1085,9 @@ elif selected_section == "📸 Log a Meal":
         def _best_idx(target: Optional[str], options: List[str]) -> int:
             if not target:
                 return 0
-            # exact match
             for i, fn in enumerate(options):
                 if fn == target:
                     return i
-            # partial match
             target_norm = target.replace("_", " ").lower()
             for i, fn in enumerate(options):
                 if target_norm in fn.lower() or fn.lower() in target_norm:
@@ -743,9 +1100,19 @@ elif selected_section == "📸 Log a Meal":
             index=_best_idx(pre_select_food, all_foods),
             format_func=lambda x: x.replace("_", " ").title(),
         )
-        # Clear the pre-select after use
         if st.session_state.get("log_meal_food"):
             st.session_state["log_meal_food"] = None
+
+        # Ambiguous Subtype Disambiguation (if applicable)
+        try:
+            from src.feature_engineering import get_ambiguous_subtypes
+            subtypes = get_ambiguous_subtypes(confirmed_food)
+            if subtypes and len(subtypes) > 1:
+                st.info("💡 **Subtype Disambiguation Available**: Select the specific variety:")
+                subtype_opts = [s["display_name"] for s in subtypes]
+                chosen_subtype = st.selectbox("Dish Subtype / Filling", subtype_opts)
+        except Exception:
+            pass
 
         # Portion sizing
         st.markdown("#### Portion Sizing")
@@ -759,7 +1126,6 @@ elif selected_section == "📸 Log a Meal":
         with p2:
             servings_opts = get_available_servings(confirmed_food)
             unit_map      = {s["unit"]: s["label"] for s in servings_opts}
-            # Default to 'standard_serving' if available
             default_unit_idx = 0
             for i, u in enumerate(unit_map.keys()):
                 if "default" in str(servings_opts[i].get("is_default", "")):
@@ -1163,7 +1529,6 @@ elif selected_section == "🍽️ Recommendations & Meal Planning":
         st.subheader("Calibrated 1-Day Meal Plan")
         st.markdown("4-meal allocation: **Breakfast 25% · Lunch 35% · Snack 10% · Dinner 30%**")
 
-        # Compute calorie target from profile
         default_cal = _calorie_target_from_profile(active_user)
         d_cal_target = st.number_input(
             "Target Daily Calories (kcal)",
@@ -1201,7 +1566,6 @@ elif selected_section == "🍽️ Recommendations & Meal Planning":
                     cuisine = m_item.get("cuisine", "")
                     if cuisine:
                         st.caption(f"🍴 {cuisine}")
-                    # Recipe details
                     ing = m_item.get("ingredients_raw", "")
                     if ing:
                         with st.expander("Ingredients"):
@@ -1353,7 +1717,6 @@ elif selected_section == "📊 Nutrition Dashboard":
     if not meals:
         st.info("No meals logged for this date. Use **📸 Log a Meal** to record what you eat.")
     else:
-        # Build display table (fibre_g may not be present in daily-totals meals)
         meal_rows = []
         for m in meals:
             row = {
@@ -1446,7 +1809,7 @@ elif selected_section == "📊 Nutrition Dashboard":
             } for k, v in averages.items()])
             st.dataframe(avg_df, use_container_width=True, hide_index=True)
 
-        # Nutrient gap insights (only shown when enough data)
+        # Nutrient gap insights
         if active_days >= 2:
             st.markdown("#### 🔬 Clinical Nutrient-Gap Insights")
             avg_fibre  = _safe_float(averages.get("fibre_g"), 0.0)
@@ -1521,3 +1884,142 @@ elif selected_section == "📊 Nutrition Dashboard":
                 st.dataframe(pd.DataFrame(hist_rows), use_container_width=True, hide_index=True)
         except Exception as ex:
             st.error(f"Could not load meal history: {ex}")
+
+
+# ===========================================================================
+# SECTION 7 — PACKAGED FOOD SCANNER
+# ===========================================================================
+elif selected_section == "🏷️ Packaged Food Scanner":
+    st.title("🏷️ Packaged Food Nutrition Label Scanner")
+    st.markdown(
+        "Upload a single image of a packaged food product (front and nutrition facts label) "
+        "to extract nutritional information, evaluate against ICMR-NIN 2020 RDA benchmarks, "
+        "and edit fields before logging."
+    )
+
+    sc_col1, sc_col2 = st.columns([1.1, 1.3])
+
+    with sc_col1:
+        st.subheader("1. Product Image & Upload")
+        pkg_img_file = st.file_uploader(
+            "Upload Packaged Product Photo (with Nutrition Table)",
+            type=["jpg", "jpeg", "png"],
+            key="pkg_uploader",
+            help="Take a clear, well-lit photo showing both product front and nutrition facts table.",
+        )
+
+        pkg_image = None
+        if pkg_img_file is not None:
+            pkg_image = Image.open(pkg_img_file).convert("RGB")
+            st.image(pkg_image, caption="Uploaded Product Photo", use_container_width=True)
+        else:
+            st.info("💡 **Tip**: You can also manually review or enter nutrition facts below even without an image.")
+
+        st.markdown("#### OCR Extraction Engine")
+        st.caption("Engine: `EasyOCR` with structured regex parser (`src/label_scanner.py`).")
+        run_ocr = st.button("🔍 Extract Nutrition Table with OCR", type="secondary", use_container_width=True)
+
+        extracted_data = {}
+        if run_ocr and pkg_image is not None:
+            with st.spinner("Scanning label text and parsing nutrition facts table…"):
+                try:
+                    from src.label_scanner import scan_label
+                    scan_res = scan_label(pkg_image)
+                    extracted_data = scan_res.get("extracted_data", {})
+                    st.success("✅ Label scanned! Review and edit values to the right.")
+                except Exception as ex:
+                    st.warning(f"OCR note: {ex}. Please review/edit fields manually on the right.")
+
+    with sc_col2:
+        st.subheader("2. Extracted Nutrition Facts & Verification")
+        st.caption("Verify and adjust extracted values as needed before logging.")
+
+        with st.form("packaged_product_form", border=True):
+            pe1, pe2 = st.columns(2)
+            with pe1:
+                p_name = st.text_input("Product Name", value=extracted_data.get("product_name") or "Packaged Multigrain Biscuit")
+                p_brand = st.text_input("Brand", value=extracted_data.get("brand") or "NutriHealth")
+                p_srv_size = st.number_input("Serving Size (g / ml)", min_value=1.0, max_value=1000.0, value=30.0, step=1.0)
+            with pe2:
+                p_cals = st.number_input("Calories (kcal per serving)", min_value=0.0, max_value=2000.0, value=135.0, step=5.0)
+                p_prot = st.number_input("Protein (g)", min_value=0.0, max_value=100.0, value=2.4, step=0.1)
+                p_carbs = st.number_input("Total Carbohydrates (g)", min_value=0.0, max_value=200.0, value=21.0, step=0.5)
+
+            pf1, pf2, pf3 = st.columns(3)
+            with pf1:
+                p_fat = st.number_input("Total Fat (g)", min_value=0.0, max_value=100.0, value=4.5, step=0.1)
+            with pf2:
+                p_fibre = st.number_input("Dietary Fibre (g)", min_value=0.0, max_value=50.0, value=1.8, step=0.1)
+            with pf3:
+                p_sod = st.number_input("Sodium (mg)", min_value=0.0, max_value=5000.0, value=120.0, step=5.0)
+
+            p_sugars = st.number_input("Added Sugars (g)", min_value=0.0, max_value=100.0, value=6.0, step=0.5)
+
+            p_submit = st.form_submit_button("📊 Evaluate & Check Health Flags", type="primary", use_container_width=True)
+
+        # Health Flags & Traffic Light Rating
+        st.markdown("#### ICMR-NIN RDA Benchmark & Quality Indicators")
+
+        # Front-of-pack traffic lights
+        # Sugar threshold: >10g high (red), 5-10g med (amber), <5g low (green)
+        # Sodium threshold: >400mg high (red), 150-400mg med, <150mg low
+        # Fat threshold: >10g high (red), 3-10g med, <3g low
+        t_col1, t_col2, t_col3 = st.columns(3)
+        with t_col1:
+            sugar_color = "red" if p_sugars > 10 else ("amber" if p_sugars >= 5 else "emerald")
+            st.markdown(f"""
+            <div class="feature-box" style="border-left: 4px solid {'#EF4444' if sugar_color=='red' else ('#F59E0B' if sugar_color=='amber' else '#10B981')};">
+                <div style="font-size:0.8rem; color:#64748B; font-weight:600;">ADDED SUGARS</div>
+                <div style="font-size:1.2rem; font-weight:700;">{p_sugars:.1f} g</div>
+                <span class="badge-pill badge-{sugar_color}">{'HIGH' if sugar_color=='red' else ('MODERATE' if sugar_color=='amber' else 'LOW')}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with t_col2:
+            sod_color = "red" if p_sod > 400 else ("amber" if p_sod >= 150 else "emerald")
+            st.markdown(f"""
+            <div class="feature-box" style="border-left: 4px solid {'#EF4444' if sod_color=='red' else ('#F59E0B' if sod_color=='amber' else '#10B981')};">
+                <div style="font-size:0.8rem; color:#64748B; font-weight:600;">SODIUM</div>
+                <div style="font-size:1.2rem; font-weight:700;">{p_sod:.0f} mg</div>
+                <span class="badge-pill badge-{sod_color}">{'HIGH' if sod_color=='red' else ('MODERATE' if sod_color=='amber' else 'LOW')}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with t_col3:
+            fat_color = "red" if p_fat > 10 else ("amber" if p_fat >= 3 else "emerald")
+            st.markdown(f"""
+            <div class="feature-box" style="border-left: 4px solid {'#EF4444' if fat_color=='red' else ('#F59E0B' if fat_color=='amber' else '#10B981')};">
+                <div style="font-size:0.8rem; color:#64748B; font-weight:600;">TOTAL FAT</div>
+                <div style="font-size:1.2rem; font-weight:700;">{p_fat:.1f} g</div>
+                <span class="badge-pill badge-{fat_color}">{'HIGH' if fat_color=='red' else ('MODERATE' if fat_color=='amber' else 'LOW')}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        if p_sugars > 10.0:
+            st.warning("⚠️ **High Added Sugar**: Contains >10g added sugar per serving. ICMR advises limiting free sugars.")
+        if p_sod > 400.0:
+            st.warning("⚠️ **High Sodium Caution**: Exceeds 400 mg sodium per serving. Monitor blood pressure impact.")
+
+        # Log to user meals
+        if active_user:
+            if st.button(f"💾 Save {p_name} to Today's Meals", key="btn_save_pkg", type="primary", use_container_width=True):
+                log_entry = {
+                    "food_name":     f"{p_name} ({p_brand})",
+                    "food_id":       f"pkg_{p_name.lower().replace(' ', '_')[:20]}",
+                    "course":        "snack",
+                    "portion_grams": float(p_srv_size),
+                    "portion_unit":  "serving",
+                    "calories_kcal": float(p_cals),
+                    "protein_g":     float(p_prot),
+                    "carbs_g":       float(p_carbs),
+                    "fat_g":         float(p_fat),
+                    "fibre_g":       float(p_fibre),
+                    "sodium_mg":     float(p_sod),
+                    "notes":         f"Packaged food scanned: {p_brand}",
+                }
+                try:
+                    log_meal(active_user["user_id"], log_entry, conn=_db_conn)
+                    st.success(f"✅ Saved **{p_name}** ({p_cals:.0f} kcal) to your meal log!")
+                    st.balloons()
+                except Exception as ex:
+                    st.error(f"Could not save meal: {ex}")

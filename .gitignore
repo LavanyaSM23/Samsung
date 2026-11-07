@@ -12,3 +12,5 @@ __pycache__/
 *.log
 logs/
 .system_generated/
+scratch/
+*.bak
