@@ -1827,41 +1827,51 @@ elif selected_section == "🏷️ Packaged Food Scanner":
         st.caption("Engine: `EasyOCR` with structured regex parser (`src/label_scanner.py`).")
         run_ocr = st.button("🔍 Extract Nutrition Table with OCR", type="secondary", use_container_width=True)
 
-        extracted_data = {}
+        if "pkg_extracted_data" not in st.session_state:
+            st.session_state["pkg_extracted_data"] = {}
+
         if run_ocr and pkg_image is not None:
             with st.spinner("Scanning label text and parsing nutrition facts table…"):
                 try:
                     from src.label_scanner import scan_label
                     scan_res = scan_label(pkg_image)
-                    extracted_data = scan_res.get("extracted_data", {})
+                    st.session_state["pkg_extracted_data"] = scan_res.get("extracted_data", {})
                     st.success("✅ Label scanned! Review and edit values to the right.")
                 except Exception as ex:
                     st.warning(f"OCR note: {ex}. Please review/edit fields manually on the right.")
 
+        extracted_data = st.session_state.get("pkg_extracted_data", {})
+
     with sc_col2:
         st.subheader("2. Extracted Nutrition Facts & Verification")
         st.caption("Verify and adjust extracted values as needed before logging.")
+
+        def _safe_float(val, fallback):
+            try:
+                return float(val) if val is not None else float(fallback)
+            except (ValueError, TypeError):
+                return float(fallback)
 
         with st.form("packaged_product_form", border=True):
             pe1, pe2 = st.columns(2)
             with pe1:
                 p_name = st.text_input("Product Name", value=extracted_data.get("product_name") or "Packaged Multigrain Biscuit")
                 p_brand = st.text_input("Brand", value=extracted_data.get("brand") or "NutriHealth")
-                p_srv_size = st.number_input("Serving Size (g / ml)", min_value=1.0, max_value=1000.0, value=30.0, step=1.0)
+                p_srv_size = st.number_input("Serving Size (g / ml)", min_value=1.0, max_value=1000.0, value=_safe_float(extracted_data.get("serving_size"), 30.0), step=1.0)
             with pe2:
-                p_cals = st.number_input("Calories (kcal per serving)", min_value=0.0, max_value=2000.0, value=135.0, step=5.0)
-                p_prot = st.number_input("Protein (g)", min_value=0.0, max_value=100.0, value=2.4, step=0.1)
-                p_carbs = st.number_input("Total Carbohydrates (g)", min_value=0.0, max_value=200.0, value=21.0, step=0.5)
+                p_cals = st.number_input("Calories (kcal per serving)", min_value=0.0, max_value=2000.0, value=_safe_float(extracted_data.get("calories"), 135.0), step=5.0)
+                p_prot = st.number_input("Protein (g)", min_value=0.0, max_value=100.0, value=_safe_float(extracted_data.get("protein"), 2.4), step=0.1)
+                p_carbs = st.number_input("Total Carbohydrates (g)", min_value=0.0, max_value=200.0, value=_safe_float(extracted_data.get("total_carbohydrates"), 21.0), step=0.5)
 
             pf1, pf2, pf3 = st.columns(3)
             with pf1:
-                p_fat = st.number_input("Total Fat (g)", min_value=0.0, max_value=100.0, value=4.5, step=0.1)
+                p_fat = st.number_input("Total Fat (g)", min_value=0.0, max_value=100.0, value=_safe_float(extracted_data.get("total_fat"), 4.5), step=0.1)
             with pf2:
-                p_fibre = st.number_input("Dietary Fibre (g)", min_value=0.0, max_value=50.0, value=1.8, step=0.1)
+                p_fibre = st.number_input("Dietary Fibre (g)", min_value=0.0, max_value=50.0, value=_safe_float(extracted_data.get("dietary_fibre") or extracted_data.get("dietary_fiber"), 1.8), step=0.1)
             with pf3:
-                p_sod = st.number_input("Sodium (mg)", min_value=0.0, max_value=5000.0, value=120.0, step=5.0)
+                p_sod = st.number_input("Sodium (mg)", min_value=0.0, max_value=5000.0, value=_safe_float(extracted_data.get("sodium"), 120.0), step=5.0)
 
-            p_sugars = st.number_input("Added Sugars (g)", min_value=0.0, max_value=100.0, value=6.0, step=0.5)
+            p_sugars = st.number_input("Added Sugars (g)", min_value=0.0, max_value=100.0, value=_safe_float(extracted_data.get("added_sugars") or extracted_data.get("total_sugars"), 6.0), step=0.5)
 
             p_submit = st.form_submit_button("📊 Evaluate & Check Health Flags", type="primary", use_container_width=True)
 

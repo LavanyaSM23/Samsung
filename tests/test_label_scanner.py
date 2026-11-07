@@ -306,6 +306,54 @@ def run_tests():
     has_salt_info = any(a.get("type") == "SALT_NOT_CONVERTED" for a in salt_alerts)
     record("api_confirm: flags SALT_NOT_CONVERTED without inventing sodium", has_salt_info)
 
+    # =========================================================================
+    # 10. Robust Brand & Ingredients Distinction
+    # =========================================================================
+    print("\n--- 10. Brand, Product Name & Ingredients Distinction ---")
+    from src.label_scanner import _extract_product_info, _clean_ocr_number
+
+    raw_label_lines = """
+    INGREDIENTS: REFINED WHEAT FLOUR (MAIDA), PALM OIL, SUGAR, COCOA SOLIDS.
+    ALLERGEN: CONTAINS WHEAT.
+    MFG BY: BRITANNIA INDUSTRIES LTD.
+    BATCH NO: 2341A
+    """
+    prod_info = _extract_product_info(raw_label_lines, raw_label_lines)
+    record("brand_distinction: ingredients line NOT assigned as brand", prod_info["brand"] != "PALM OIL" and "flour" not in (prod_info["brand"] or "").lower())
+    record("brand_distinction: recognized brand Britannia from text", prod_info["brand"] == "Britannia")
+
+    # Numeric OCR error cleaning
+    clean_num1 = _clean_ocr_number("O.5")
+    record("ocr_cleaning: O.5 converted to 0.5", clean_num1 == "0.5")
+    clean_num2 = _clean_ocr_number("l2.5")
+    record("ocr_cleaning: l2.5 converted to 12.5", clean_num2 == "12.5")
+    clean_num3 = _clean_ocr_number("8,5")
+    record("ocr_cleaning: 8,5 converted to 8.5", clean_num3 == "8.5")
+
+    # 3-way allergen classification
+    alg_3way = _extract_allergens(
+        "Allergy Advice: Contains Milk, Soy. May contain traces of Almonds.",
+        "Ingredients: Wheat flour, Palm oil, Skimmed milk powder, Soya lecithin."
+    )
+    record("allergens_3way: declared contains milk and soy", "milk" in (alg_3way["declared"] or []) and "soy" in (alg_3way["declared"] or []))
+    record("allergens_3way: detected from ingredients includes wheat", "wheat" in (alg_3way["detected_from_ingredients"] or []))
+    record("allergens_3way: may contain includes tree nuts", "tree nuts" in (alg_3way["may_contain"] or []))
+
+    # Insufficient data in confirmation
+    empty_payload = {
+        "user_profile": "adult_male_sedentary",
+        "nutrition": {
+            "calories": None,
+            "protein": None,
+            "total_carbohydrates": None,
+            "total_fat": None
+        },
+        "user_corrections": {}
+    }
+    resp_empty_nut = client.post("/api/confirm-label", json=empty_payload)
+    empty_eval = resp_empty_nut.get_json().get("data", {}).get("health_evaluation", {})
+    record("api_confirm: insufficient data returns None score and warning", empty_eval.get("suitability_score") is None and empty_eval.get("verdict") == "INSUFFICIENT_DATA")
+
     # Summary
     total_tests = len(test_results)
     passed_tests = sum(1 for _, ok in test_results if ok)

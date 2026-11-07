@@ -14,3 +14,6 @@ logs/
 .system_generated/
 scratch/
 *.bak
+database/
+*.db
+models/easyocr/

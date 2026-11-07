@@ -598,7 +598,12 @@ def confirm_packaged_label():
         protein = _parse("protein")
         carbs = _parse("total_carbohydrates")
         fat = _parse("total_fat")
-        fibre = _parse("dietary_fibre")
+        fibre = _parse("dietary_fibre") if _parse("dietary_fibre") is not None else _parse("dietary_fiber")
+        sugars = _parse("total_sugars") if _parse("total_sugars") is not None else _parse("sugar")
+        added_sugars = _parse("added_sugars")
+        sat_fat = _parse("saturated_fat")
+        trans_fat = _parse("trans_fat")
+        cholesterol = _parse("cholesterol")
         sodium = _parse("sodium")
         salt = _parse("salt")
 
@@ -612,14 +617,14 @@ def confirm_packaged_label():
         health_score, verdict = None, None
         alerts = []
 
-        if cal is not None:
+        if cal is not None and (protein is not None or carbs is not None or fat is not None):
             score_input = {
                 "calories_kcal": cal or 0,
                 "carbs_g": carbs or 0,
                 "protein_g": protein or 0,
                 "fat_g": fat or 0,
-                "fibre_g": fibre or 1.0,
-                "sodium_mg": effective_sodium or 200.0,
+                "fibre_g": fibre if fibre is not None else 1.0,
+                "sodium_mg": effective_sodium if effective_sodium is not None else 200.0,
                 "sodium_flag": "ok",
                 "calorie_flag": "ok",
                 "display_name": data.get("product", {}).get("product_name", "Packaged Product"),
@@ -627,18 +632,74 @@ def confirm_packaged_label():
             }
             health_score, verdict = compute_suitability_score(score_input, profile_key=user_profile)
 
-            if user_profile == "hypertensive_adult" and effective_sodium and effective_sodium > 500:
+            # High Sodium / Hypertension alerts
+            if user_profile == "hypertensive_adult" and effective_sodium and effective_sodium > 400:
                 alerts.append({
                     "severity": "HIGH",
                     "type": "HYPERTENSION_WARNING",
                     "message": f"Declared sodium ({effective_sodium:.0f} mg/serving) exceeds DASH threshold for hypertensive individuals."
                 })
-            if user_profile == "diabetic_adult" and carbs and carbs > 35:
+            elif effective_sodium and effective_sodium > 500:
+                alerts.append({
+                    "severity": "WARNING",
+                    "type": "HIGH_SODIUM_WARNING",
+                    "message": f"High sodium content ({effective_sodium:.0f} mg/serving). Consume in moderation."
+                })
+
+            # Carbohydrate / Sugar alerts
+            if user_profile == "diabetic_adult":
+                if carbs and carbs > 35:
+                    alerts.append({
+                        "severity": "MODERATE",
+                        "type": "DIABETES_CARB_ALERT",
+                        "message": f"High carbohydrate content ({carbs:.1f}g/serving) may cause glycemic spike. Review serving size carefully."
+                    })
+                if (sugars and sugars > 5) or (added_sugars and added_sugars > 2):
+                    alerts.append({
+                        "severity": "HIGH",
+                        "type": "DIABETIC_SUGAR_WARNING",
+                        "message": "Contains fast-acting sugars that can rapidly elevate blood glucose levels."
+                    })
+            elif added_sugars and added_sugars > 10:
+                alerts.append({
+                    "severity": "WARNING",
+                    "type": "HIGH_ADDED_SUGAR",
+                    "message": f"High added sugar ({added_sugars:.1f}g/serving). ICMR advises limiting free sugars to under 25g/day."
+                })
+
+            # PCOS alerts
+            if "pcos" in user_profile.lower():
+                if (sugars and sugars > 8) or (added_sugars and added_sugars > 4):
+                    alerts.append({
+                        "severity": "HIGH",
+                        "type": "PCOS_INSULIN_WARNING",
+                        "message": "Elevated sugar content may worsen insulin resistance associated with PCOS."
+                    })
+
+            # Trans fat alerts
+            if trans_fat is not None and trans_fat > 0.0:
+                alerts.append({
+                    "severity": "HIGH",
+                    "type": "TRANS_FAT_ALERT",
+                    "message": f"Contains declared industrial trans-fatty acids ({trans_fat:.1f}g). WHO & ICMR guidelines recommend zero intake."
+                })
+
+            # Saturated fat alerts
+            if sat_fat is not None and sat_fat > 5.0:
                 alerts.append({
                     "severity": "MODERATE",
-                    "type": "DIABETES_CARB_ALERT",
-                    "message": "High carbohydrate content may cause glycemic spike. Review serving size carefully."
+                    "type": "HIGH_SATURATED_FAT",
+                    "message": f"Contains {sat_fat:.1f}g saturated fat per serving. Limit intake to protect cardiovascular health."
                 })
+
+            # Fiber benefit or deficiency
+            if fibre is not None and fibre >= 3.0:
+                alerts.append({
+                    "severity": "INFO",
+                    "type": "FIBRE_RICH",
+                    "message": f"Good source of dietary fibre ({fibre:.1f}g/serving), supporting healthy digestion and glycemic stability."
+                })
+
             if salt is not None and sodium is None:
                 alerts.append({
                     "severity": "INFO",
@@ -648,6 +709,13 @@ def confirm_packaged_label():
                         "sodium value remains unavailable. Check product label for declared sodium."
                     )
                 })
+        else:
+            verdict = "INSUFFICIENT_DATA"
+            alerts.append({
+                "severity": "WARNING",
+                "type": "INSUFFICIENT_NUTRITION_DATA",
+                "message": "Calories or essential macronutrients are unavailable. Please edit or enter values above to compute suitability."
+            })
 
         return jsonify({
             "success": True,

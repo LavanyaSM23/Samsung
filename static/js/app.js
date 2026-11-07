@@ -945,7 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { key: 'calories', label: 'Energy / Calories', unit: 'kcal' },
     { key: 'protein', label: 'Protein', unit: 'g' },
     { key: 'total_carbohydrates', label: 'Total Carbohydrates', unit: 'g' },
-    { key: 'dietary_fiber', label: 'Dietary Fiber', unit: 'g' },
+    { key: 'dietary_fibre', altKey: 'dietary_fiber', label: 'Dietary Fibre', unit: 'g' },
     { key: 'total_sugars', label: 'Total Sugars', unit: 'g' },
     { key: 'added_sugars', label: 'Added Sugars', unit: 'g' },
     { key: 'total_fat', label: 'Total Fat', unit: 'g' },
@@ -958,6 +958,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { key: 'iron', label: 'Iron', unit: 'mg' },
     { key: 'potassium', label: 'Potassium', unit: 'mg' },
     { key: 'vitamin_d', label: 'Vitamin D', unit: 'mcg' },
+    { key: 'vitamin_c', label: 'Vitamin C', unit: 'mg' },
   ];
 
   // Label Scanner Elements
@@ -1158,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nutrition = data.nutrition || {};
 
     NUTRIENT_DISPLAY_META.forEach(nMeta => {
-      const entry = nutrition[nMeta.key];
+      const entry = nutrition[nMeta.key] || (nMeta.altKey ? nutrition[nMeta.altKey] : null);
       const hasVal = entry && entry.value !== null && entry.value !== undefined;
       const row = document.createElement('tr');
 
@@ -1199,6 +1200,9 @@ document.addEventListener('DOMContentLoaded', () => {
           user_value: newVal,
           is_corrected: true
         };
+        if (nMeta.altKey) {
+          labelUserCorrections[nMeta.altKey] = labelUserCorrections[nMeta.key];
+        }
       });
 
       row.appendChild(nameCell);
@@ -1217,14 +1221,15 @@ document.addEventListener('DOMContentLoaded', () => {
       labelIngredientsSection.classList.remove('hidden');
     }
 
-    // 7. Allergens
+    // 7. Allergens (3-way categorization: Declared, In Ingredients, May Contain)
     const allergens = data.allergens || {};
     labelAllergenContent.innerHTML = '';
     const decl = allergens.declared || [];
+    const detected = allergens.detected_from_ingredients || [];
     const may = allergens.may_contain || [];
 
-    if (decl.length === 0 && may.length === 0) {
-      labelAllergenContent.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">No specific allergen declarations detected on packaging.</span>';
+    if (decl.length === 0 && detected.length === 0 && may.length === 0) {
+      labelAllergenContent.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">No specific allergen declarations or common allergens detected.</span>';
     } else {
       const container = document.createElement('div');
       container.className = 'label-allergen-badges';
@@ -1232,14 +1237,22 @@ document.addEventListener('DOMContentLoaded', () => {
       decl.forEach(item => {
         const badge = document.createElement('span');
         badge.className = 'label-allergen-declared';
-        badge.textContent = `Contains: ${item}`;
+        badge.textContent = `Contains (Declared): ${item}`;
+        container.appendChild(badge);
+      });
+
+      detected.forEach(item => {
+        const badge = document.createElement('span');
+        badge.className = 'label-allergen-detected';
+        badge.style.cssText = 'display:inline-flex; align-items:center; padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:600; background:rgba(245, 158, 11, 0.15); color:#F59E0B; border:1px solid rgba(245, 158, 11, 0.3); margin-right:6px; margin-bottom:6px;';
+        badge.textContent = `In Ingredients: ${item}`;
         container.appendChild(badge);
       });
 
       may.forEach(item => {
         const badge = document.createElement('span');
         badge.className = 'label-allergen-may';
-        badge.textContent = `May Contain: ${item}`;
+        badge.textContent = `May Contain (Traces): ${item}`;
         container.appendChild(badge);
       });
 
