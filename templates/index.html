@@ -27,9 +27,9 @@
 
       <!-- Navigation Tabs -->
       <nav class="nav-tabs" id="navigationTabs">
-        <button class="nav-tab active" id="tabScanner" data-view="scannerView">Food Scanner</button>
+        <button class="nav-tab active" id="tabProfile" data-view="profileView">My Nutrition Profile</button>
+        <button class="nav-tab" id="tabScanner" data-view="scannerView">Food Scanner</button>
         <button class="nav-tab" id="tabLabelScanner" data-view="labelScannerView">Label Scanner</button>
-        <button class="nav-tab" id="tabProfile" data-view="profileView">My Nutrition Profile</button>
       </nav>
 
       <!-- Active User Indicator & Theme Toggle -->
@@ -58,8 +58,176 @@
 
   <!-- Main Application Container -->
   <main class="main-content" id="mainContent">
-    <!-- View 1: Food Scanner View -->
-    <section class="view-section active" id="scannerView">
+    <!-- View 1: My Nutrition Profile (Default Landing & Onboarding) -->
+    <section class="view-section active" id="profileView">
+      <div class="hero-header">
+        <h2 class="hero-title">My Nutrition <span class="gradient-text">Profile</span></h2>
+        <p class="hero-subtitle">Your health journey starts with understanding your body. Create your personalized nutrition profile to receive intelligent food recommendations tailored to your goals.</p>
+      </div>
+
+      <div class="profile-view-grid">
+        <!-- Left: Profile List / Switcher -->
+        <div class="scanner-card profile-list-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Saved Profiles</h3>
+            <button type="button" class="btn btn-sm btn-primary" id="btnNewProfile">+ New Profile</button>
+          </div>
+
+          <div id="profileListContainer">
+            <div class="empty-state" id="profileListEmpty" style="padding:24px 0">
+              <p class="empty-text">No profiles saved yet. Create your first profile to unlock personalized recommendations.</p>
+            </div>
+            <div id="profileListItems" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- Right: Profile Create / Edit Form -->
+        <div class="scanner-card profile-form-panel">
+          <div class="panel-header">
+            <h3 class="panel-title" id="profileFormTitle">Create New Profile</h3>
+            <span class="badge badge-outline" id="profileFormStatus">New</span>
+          </div>
+
+          <!-- Form errors -->
+          <div class="profile-form-errors hidden" id="profileFormErrors"></div>
+
+          <form id="profileForm" novalidate>
+            <input type="hidden" id="profileFormId" value="">
+
+            <div class="profile-form-row">
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfName">Name <span class="optional-label">(optional)</span></label>
+                <input type="text" id="pfName" class="profile-input" placeholder="e.g. Priya Sharma" autocomplete="name" maxlength="80">
+              </div>
+            </div>
+
+            <div class="profile-form-row two-col">
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfAge">Age <span class="required-star">*</span></label>
+                <input type="number" id="pfAge" class="profile-input" placeholder="e.g. 28" min="1" max="120" step="1" required>
+              </div>
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfSex">Sex <span class="required-star">*</span></label>
+                <select id="pfSex" class="profile-input" required>
+                  <option value="">Select…</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Prefer not to say</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="profile-form-row two-col">
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfHeight">Height (cm) <span class="required-star">*</span></label>
+                <input type="number" id="pfHeight" class="profile-input" placeholder="e.g. 165" min="50" max="250" step="0.5" required>
+              </div>
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfWeight">Weight (kg) <span class="required-star">*</span></label>
+                <input type="number" id="pfWeight" class="profile-input" placeholder="e.g. 62" min="20" max="300" step="0.5" required>
+              </div>
+            </div>
+
+            <div class="profile-form-row">
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfActivity">Activity Level <span class="required-star">*</span></label>
+                <select id="pfActivity" class="profile-input" required>
+                  <option value="">Select…</option>
+                  <option value="sedentary">Sedentary (desk job, little exercise)</option>
+                  <option value="lightly_active">Lightly Active (light exercise 1–3 days/week)</option>
+                  <option value="moderately_active">Moderately Active (moderate exercise 3–5 days/week)</option>
+                  <option value="very_active">Very Active (hard exercise 6–7 days/week)</option>
+                  <option value="extra_active">Extra Active (physical job + hard training)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="profile-form-row two-col">
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfDiet">Dietary Preference</label>
+                <select id="pfDiet" class="profile-input">
+                  <option value="omnivore">Omnivore (No restrictions)</option>
+                  <option value="vegetarian">Vegetarian</option>
+                  <option value="vegan">Vegan</option>
+                  <option value="eggetarian">Eggetarian</option>
+                  <option value="jain">Jain Vegetarian</option>
+                </select>
+              </div>
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfGoal">Nutrition Goal</label>
+                <select id="pfGoal" class="profile-input">
+                  <option value="maintenance">Maintain Weight</option>
+                  <option value="weight_loss">Lose Weight</option>
+                  <option value="weight_gain">Gain Weight</option>
+                  <option value="muscle_gain">Build Muscle</option>
+                  <option value="general_health">General Wellness</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="profile-form-row">
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfAllergies">Food Allergies <span class="optional-label">(comma-separated)</span></label>
+                <input type="text" id="pfAllergies" class="profile-input" placeholder="e.g. peanuts, shellfish, tree nuts">
+                <span class="profile-field-hint">Common: peanuts, tree nuts, milk, eggs, wheat, soy, fish, shellfish, sesame</span>
+              </div>
+            </div>
+
+            <div class="profile-form-row two-col">
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfRestrictions">Medical / Dietary Restrictions <span class="optional-label">(comma-separated)</span></label>
+                <input type="text" id="pfRestrictions" class="profile-input" placeholder="e.g. diabetic, hypertension, low sodium">
+                <span class="profile-field-hint">e.g. diabetic, hypertension, celiac</span>
+              </div>
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfBudget">Budget Preference <span class="optional-label">(optional)</span></label>
+                <select id="pfBudget" class="profile-input">
+                  <option value="medium">Medium (Standard)</option>
+                  <option value="low">Low (Budget-Friendly)</option>
+                  <option value="high">High (Premium)</option>
+                </select>
+                <span class="profile-field-hint">Used for affordable Indian alternatives</span>
+              </div>
+            </div>
+
+            <!-- Computed BMI preview (shown when height+weight filled) -->
+            <div class="bmi-preview-card hidden" id="bmiPreviewCard">
+              <div class="bmi-row">
+                <span class="bmi-label">BMI Estimate:</span>
+                <span class="bmi-val" id="bmiPreviewVal">--</span>
+                <span class="bmi-category" id="bmiPreviewCat"></span>
+              </div>
+              <div class="bmi-row">
+                <span class="bmi-label">Est. Daily Calorie Target:</span>
+                <span class="bmi-val" id="calPreviewVal">--</span>
+                <span class="bmi-unit">kcal/day</span>
+              </div>
+              <p class="bmi-note">Estimates are for general awareness only and not medical advice.</p>
+            </div>
+
+            <div class="profile-form-actions">
+              <button type="submit" class="btn btn-primary" id="btnSaveProfile">Save Profile</button>
+              <button type="button" class="btn btn-secondary hidden" id="btnCancelEdit">Cancel</button>
+              <button type="button" class="btn btn-danger hidden" id="btnDeleteProfile">Delete Profile</button>
+            </div>
+          </form>
+
+          <!-- Success banner (shown after save) -->
+          <div class="profile-save-success hidden" id="profileSaveSuccess">
+            <div class="profile-save-success-content">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Profile active! <span id="profileSaveMsg"></span></span>
+            </div>
+            <button type="button" class="btn btn-proceed-scanner" id="btnProceedToScanner">
+              Proceed to Food Scanner &rarr;
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View 2: Food Scanner View -->
+    <section class="view-section" id="scannerView">
       <div class="hero-header">
         <h1 class="hero-title">Visual Food Recognition & <span class="gradient-text">Precision Nutrition</span></h1>
         <p class="hero-subtitle">Upload a meal photo or enter the name of an Indian dish to instantly explore its calories, macros, protein, fibre, health score, and personalized food recommendations.</p>
@@ -439,168 +607,6 @@
         <div class="chart-card full-width">
           <h3 class="chart-title">Per-Class F1-Score Distribution</h3>
           <img src="/reports/figures/14_per_class_f1_distribution.png" alt="Per class F1 distribution" class="chart-img">
-        </div>
-      </div>
-    </section>
-    <!-- View 5: My Nutrition Profile -->
-    <section class="view-section" id="profileView">
-      <div class="hero-header">
-        <h2 class="hero-title">My Nutrition <span class="gradient-text">Profile</span></h2>
-        <p class="hero-subtitle">Create or edit your personal health profile. NutriSense AI uses your age, weight, height, activity level, and dietary preferences to personalise suitability scores and RDA comparisons.</p>
-      </div>
-
-      <div class="profile-view-grid">
-        <!-- Left: Profile List / Switcher -->
-        <div class="scanner-card profile-list-panel">
-          <div class="panel-header">
-            <h3 class="panel-title">Saved Profiles</h3>
-            <button type="button" class="btn btn-sm btn-primary" id="btnNewProfile">+ New Profile</button>
-          </div>
-
-          <div id="profileListContainer">
-            <div class="empty-state" id="profileListEmpty" style="padding:24px 0">
-              <p class="empty-text">No profiles saved yet. Create one to get started.</p>
-            </div>
-            <div id="profileListItems" style="display:none"></div>
-          </div>
-        </div>
-
-        <!-- Right: Profile Create / Edit Form -->
-        <div class="scanner-card profile-form-panel">
-          <div class="panel-header">
-            <h3 class="panel-title" id="profileFormTitle">Create New Profile</h3>
-            <span class="badge badge-outline" id="profileFormStatus"></span>
-          </div>
-
-          <!-- Form errors -->
-          <div class="profile-form-errors hidden" id="profileFormErrors"></div>
-
-          <form id="profileForm" novalidate>
-            <input type="hidden" id="profileFormId" value="">
-
-            <div class="profile-form-row">
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfName">Name <span class="optional-label">(optional)</span></label>
-                <input type="text" id="pfName" class="profile-input" placeholder="e.g. Priya Sharma" autocomplete="name" maxlength="80">
-              </div>
-            </div>
-
-            <div class="profile-form-row two-col">
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfAge">Age <span class="required-star">*</span></label>
-                <input type="number" id="pfAge" class="profile-input" placeholder="e.g. 28" min="1" max="120" step="1" required>
-              </div>
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfSex">Sex <span class="required-star">*</span></label>
-                <select id="pfSex" class="profile-input" required>
-                  <option value="">Select…</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Prefer not to say</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="profile-form-row two-col">
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfHeight">Height (cm) <span class="required-star">*</span></label>
-                <input type="number" id="pfHeight" class="profile-input" placeholder="e.g. 165" min="50" max="250" step="0.5" required>
-              </div>
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfWeight">Weight (kg) <span class="required-star">*</span></label>
-                <input type="number" id="pfWeight" class="profile-input" placeholder="e.g. 62" min="20" max="300" step="0.5" required>
-              </div>
-            </div>
-
-            <div class="profile-form-row">
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfActivity">Activity Level <span class="required-star">*</span></label>
-                <select id="pfActivity" class="profile-input" required>
-                  <option value="">Select…</option>
-                  <option value="sedentary">Sedentary (desk job, little exercise)</option>
-                  <option value="lightly_active">Lightly Active (light exercise 1–3 days/week)</option>
-                  <option value="moderately_active">Moderately Active (moderate exercise 3–5 days/week)</option>
-                  <option value="very_active">Very Active (hard exercise 6–7 days/week)</option>
-                  <option value="extra_active">Extra Active (physical job + hard training)</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="profile-form-row two-col">
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfDiet">Dietary Preference</label>
-                <select id="pfDiet" class="profile-input">
-                  <option value="omnivore">Omnivore (No restrictions)</option>
-                  <option value="vegetarian">Vegetarian</option>
-                  <option value="vegan">Vegan</option>
-                  <option value="eggetarian">Eggetarian</option>
-                  <option value="jain">Jain Vegetarian</option>
-                </select>
-              </div>
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfGoal">Nutrition Goal</label>
-                <select id="pfGoal" class="profile-input">
-                  <option value="maintenance">Maintain Weight</option>
-                  <option value="weight_loss">Lose Weight</option>
-                  <option value="weight_gain">Gain Weight</option>
-                  <option value="muscle_gain">Build Muscle</option>
-                  <option value="general_health">General Wellness</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="profile-form-row">
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfAllergies">Food Allergies <span class="optional-label">(comma-separated)</span></label>
-                <input type="text" id="pfAllergies" class="profile-input" placeholder="e.g. peanuts, shellfish, tree nuts">
-                <span class="profile-field-hint">Common: peanuts, tree nuts, milk, eggs, wheat, soy, fish, shellfish, sesame</span>
-              </div>
-            </div>
-
-            <div class="profile-form-row two-col">
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfRestrictions">Medical / Dietary Restrictions <span class="optional-label">(comma-separated)</span></label>
-                <input type="text" id="pfRestrictions" class="profile-input" placeholder="e.g. diabetic, hypertension, low sodium">
-                <span class="profile-field-hint">e.g. diabetic, hypertension, celiac</span>
-              </div>
-              <div class="profile-field">
-                <label class="profile-field-label" for="pfBudget">Budget Preference <span class="optional-label">(optional)</span></label>
-                <select id="pfBudget" class="profile-input">
-                  <option value="medium">Medium (Standard)</option>
-                  <option value="low">Low (Budget-Friendly)</option>
-                  <option value="high">High (Premium)</option>
-                </select>
-                <span class="profile-field-hint">Used for affordable Indian alternatives</span>
-              </div>
-            </div>
-
-            <!-- Computed BMI preview (shown when height+weight filled) -->
-            <div class="bmi-preview-card hidden" id="bmiPreviewCard">
-              <div class="bmi-row">
-                <span class="bmi-label">BMI Estimate:</span>
-                <span class="bmi-val" id="bmiPreviewVal">--</span>
-                <span class="bmi-category" id="bmiPreviewCat"></span>
-              </div>
-              <div class="bmi-row">
-                <span class="bmi-label">Est. Daily Calorie Target:</span>
-                <span class="bmi-val" id="calPreviewVal">--</span>
-                <span class="bmi-unit">kcal/day</span>
-              </div>
-              <p class="bmi-note">Estimates are for general awareness only and not medical advice.</p>
-            </div>
-
-            <div class="profile-form-actions">
-              <button type="submit" class="btn btn-primary" id="btnSaveProfile">Save Profile</button>
-              <button type="button" class="btn btn-secondary hidden" id="btnCancelEdit">Cancel</button>
-              <button type="button" class="btn btn-danger hidden" id="btnDeleteProfile">Delete Profile</button>
-            </div>
-          </form>
-
-          <!-- Success banner (shown after save) -->
-          <div class="profile-save-success hidden" id="profileSaveSuccess">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            Profile saved! <span id="profileSaveMsg"></span>
-          </div>
         </div>
       </div>
     </section>

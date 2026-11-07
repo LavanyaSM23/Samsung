@@ -774,6 +774,8 @@ def api_create_profile():
         data = request.get_json(force=True, silent=True) or {}
         if not data.get("display_name") and data.get("name"):
             data["display_name"] = str(data["name"]).strip()
+        if not data.get("name") and data.get("display_name"):
+            data["name"] = str(data["display_name"]).strip()
         ok, errors = validate_profile_data(data)
         if not ok:
             return jsonify({"success": False, "errors": errors}), 400
@@ -807,6 +809,8 @@ def api_update_profile(user_id):
         updates = request.get_json(force=True, silent=True) or {}
         if not updates.get("display_name") and updates.get("name"):
             updates["display_name"] = str(updates["name"]).strip()
+        if not updates.get("name") and updates.get("display_name"):
+            updates["name"] = str(updates["display_name"]).strip()
         updated = update_profile(user_id, updates)
         if updated is None:
             return jsonify({"success": False, "error": "Profile not found."}), 404

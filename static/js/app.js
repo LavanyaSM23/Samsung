@@ -136,15 +136,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (activeUserPill) {
+    activeUserPill.style.cursor = 'pointer';
+    activeUserPill.addEventListener('click', () => {
+      const profileTab = document.getElementById('tabProfile');
+      if (profileTab) profileTab.click();
+    });
+  }
+
   function updateNavbarUserDisplay(profile) {
     if (!profile) {
       if (activeUserName) activeUserName.textContent = 'No Profile Set';
-      if (activeUserPill) activeUserPill.style.background = 'rgba(107, 114, 128, 0.08)';
+      if (activeUserPill) {
+        activeUserPill.style.background = 'rgba(107, 114, 128, 0.08)';
+        activeUserPill.style.borderColor = 'rgba(107, 114, 128, 0.25)';
+        activeUserPill.style.color = 'var(--text-secondary)';
+      }
       return;
     }
-    const displayName = profile.display_name || profile.name || (profile.sex ? (profile.sex === 'male' ? 'Male' : 'Female') : '') + 
-                        (profile.age ? `, ${profile.age}y` : '');
-    if (activeUserName) activeUserName.textContent = displayName || 'Profile Active';
+    const displayName = profile.display_name || profile.name || 'Unnamed Profile';
+    if (activeUserName) activeUserName.textContent = displayName;
+    if (activeUserPill) {
+      activeUserPill.style.background = 'rgba(16, 185, 129, 0.12)';
+      activeUserPill.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+      activeUserPill.style.color = 'var(--accent-emerald)';
+    }
   }
 
   function updateProfileCardDisplay(profile) {
@@ -154,8 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (profileRdaBadge) profileRdaBadge.textContent = '-- kcal / day';
       return;
     }
-    const name = profile.display_name || profile.name || ((profile.sex || '') + (profile.age ? ` (${profile.age}y)` : ''));
-    if (profileTitleDisplay) profileTitleDisplay.textContent = name || 'User Profile';
+    const name = profile.display_name || profile.name || 'Unnamed Profile';
+    if (profileTitleDisplay) profileTitleDisplay.textContent = name;
     
     // Build description from profile data
     let desc = '';
@@ -1432,7 +1448,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initial load: restore active user profile from localStorage
+  // Initial load: restore active user profile from localStorage or database
+  loadProfileList();
+
   if (activeUserId) {
     fetch(`/api/profile/${activeUserId}`)
       .then(res => res.json())
@@ -1441,6 +1459,7 @@ document.addEventListener('DOMContentLoaded', () => {
           activeUserProfile = payload.data;
           updateNavbarUserDisplay(activeUserProfile);
           updateProfileCardDisplay(activeUserProfile);
+          populateFormForEdit(activeUserProfile);
         } else {
           // Profile no longer exists - clear stored id
           activeUserId = null;
@@ -1454,8 +1473,34 @@ document.addEventListener('DOMContentLoaded', () => {
         updateProfileCardDisplay(null);
       });
   } else {
-    updateNavbarUserDisplay(null);
-    updateProfileCardDisplay(null);
+    // Check if any profiles exist in DB to auto-select the most recent
+    fetch('/api/user-profiles')
+      .then(res => res.json())
+      .then(payload => {
+        if (payload.success && payload.data && payload.data.length > 0) {
+          const first = payload.data[0];
+          activeUserId = first.user_id;
+          localStorage.setItem('nutrisense_active_user_id', activeUserId);
+          fetch(`/api/profile/${activeUserId}`)
+            .then(r => r.json())
+            .then(p => {
+              if (p.success && p.data) {
+                activeUserProfile = p.data;
+                updateNavbarUserDisplay(activeUserProfile);
+                updateProfileCardDisplay(activeUserProfile);
+                populateFormForEdit(activeUserProfile);
+                loadProfileList();
+              }
+            });
+        } else {
+          updateNavbarUserDisplay(null);
+          updateProfileCardDisplay(null);
+        }
+      })
+      .catch(() => {
+        updateNavbarUserDisplay(null);
+        updateProfileCardDisplay(null);
+      });
   }
 
   // ============================================================
@@ -1556,6 +1601,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) el.addEventListener('input', computeBmiPreview);
   });
 
+  const btnProceedToScanner = document.getElementById('btnProceedToScanner');
+  if (btnProceedToScanner) {
+    btnProceedToScanner.addEventListener('click', () => {
+      const tab = document.getElementById('tabScanner');
+      if (tab) tab.click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
   function loadProfileList() {
     if (!profileListItems) return;
     fetch('/api/user-profiles')
@@ -1574,23 +1628,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
         profiles.forEach(p => {
           const item = document.createElement('div');
-          item.className = `profile-list-item${activeUserId === p.user_id ? ' active-profile' : ''}`;
+          const isCurrentActive = (activeUserId === p.user_id);
+          item.className = `profile-list-item${isCurrentActive ? ' active-profile' : ''}`;
+
+          const displayName = (p.display_name || p.name || 'Unnamed Profile').trim();
+          const initial = displayName.charAt(0).toUpperCase() || 'U';
+
           const metaParts = [];
-          if (p.age) metaParts.push(`${p.age}y`);
-          if (p.sex) metaParts.push(p.sex);
+          if (p.age) metaParts.push(`${p.age} yrs`);
+          if (p.sex || p.gender) metaParts.push(p.sex || p.gender);
           if (p.activity_level) metaParts.push(p.activity_level.replace(/_/g, ' '));
+          const metaString = metaParts.length > 0 ? metaParts.join(' · ') : 'Profile saved';
+
+          const bmiBadge = p.bmi ? `<span class="profile-list-bmi-pill">BMI ${p.bmi}</span>` : '';
+          const activeBadge = isCurrentActive
+            ? '<span class="profile-list-active-badge"><span class="active-dot"></span>Active</span>'
+            : '<span class="profile-list-switch-hint">Switch &rarr;</span>';
 
           item.innerHTML = `
-            <div>
-              <div class="profile-list-name">${p.name || 'User'}</div>
-              <div class="profile-list-meta">${metaParts.join(' · ')}</div>
+            <div class="profile-item-main">
+              <div class="profile-avatar">${initial}</div>
+              <div class="profile-item-info">
+                <div class="profile-list-name-row">
+                  <span class="profile-list-name" title="${displayName}">${displayName}</span>
+                </div>
+                <div class="profile-list-meta">${metaString}</div>
+                ${bmiBadge ? `<div class="profile-list-badges">${bmiBadge}</div>` : ''}
+              </div>
             </div>
-            ${activeUserId === p.user_id ? '<span class="profile-list-active-badge">Active</span>' : ''}
+            <div class="profile-item-status">
+              ${activeBadge}
+            </div>
           `;
 
           item.addEventListener('click', () => {
-            // Load profile into form for editing and set as active
+            activeUserId = p.user_id;
+            localStorage.setItem('nutrisense_active_user_id', activeUserId);
             fetchAndEditProfile(p.user_id);
+            loadProfileList();
           });
           profileListItems.appendChild(item);
         });
@@ -1602,16 +1677,30 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch(`/api/profile/${userId}`)
       .then(res => res.json())
       .then(payload => {
-        if (!payload.success) return;
-        populateFormForEdit(payload.data);
+        if (!payload.success || !payload.data) return;
+        activeUserProfile = payload.data;
+        activeUserId = payload.data.user_id;
+        localStorage.setItem('nutrisense_active_user_id', activeUserId);
+        updateNavbarUserDisplay(activeUserProfile);
+        updateProfileCardDisplay(activeUserProfile);
+        populateFormForEdit(activeUserProfile);
+        if (currentPredictionData && currentPredictionData.prediction) {
+          recalculateAdjustedNutrition();
+        }
       })
       .catch(err => console.error('Error fetching profile:', err));
   }
 
   function populateFormForEdit(profile) {
     if (!profileForm) return;
+    const displayName = profile.display_name || profile.name || 'Unnamed Profile';
     if (profileFormId) profileFormId.value = profile.user_id || '';
-    if (profileFormTitle) profileFormTitle.textContent = 'Edit Profile';
+    if (profileFormTitle) profileFormTitle.textContent = `Edit Profile: ${displayName}`;
+    if (profileFormStatus) {
+      profileFormStatus.textContent = 'Active Profile';
+      profileFormStatus.className = 'badge badge-success';
+    }
+    if (btnSaveProfile) btnSaveProfile.textContent = 'Update Profile';
     if (pfName) pfName.value = profile.display_name || profile.name || '';
     if (pfAge) pfAge.value = profile.age || '';
     if (pfSex) pfSex.value = profile.sex || '';
@@ -1636,6 +1725,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pfBudget) pfBudget.value = 'medium';
     if (profileFormId) profileFormId.value = '';
     if (profileFormTitle) profileFormTitle.textContent = 'Create New Profile';
+    if (profileFormStatus) {
+      profileFormStatus.textContent = 'New';
+      profileFormStatus.className = 'badge badge-outline';
+    }
+    if (btnSaveProfile) btnSaveProfile.textContent = 'Save Profile';
     if (btnCancelEdit) btnCancelEdit.classList.add('hidden');
     if (btnDeleteProfile) btnDeleteProfile.classList.add('hidden');
     if (profileFormErrors) { profileFormErrors.innerHTML = ''; profileFormErrors.classList.add('hidden'); }
@@ -1690,7 +1784,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const allergiesRaw = pfAllergies ? pfAllergies.value.trim() : '';
       const restrictionsRaw = pfRestrictions ? pfRestrictions.value.trim() : '';
       const rawName = pfName ? pfName.value.trim() : '';
-      const finalName = rawName || 'User Profile';
+      const finalName = rawName || 'Unnamed Profile';
 
       const payload = {
         name: finalName,
@@ -1720,7 +1814,7 @@ document.addEventListener('DOMContentLoaded', () => {
       })
         .then(res => res.json())
         .then(resp => {
-          if (btnSaveProfile) { btnSaveProfile.disabled = false; btnSaveProfile.textContent = 'Save Profile'; }
+          if (btnSaveProfile) { btnSaveProfile.disabled = false; btnSaveProfile.textContent = isEdit ? 'Update Profile' : 'Save Profile'; }
 
           if (!resp.success) {
             const errs = resp.errors || [resp.error || 'Unknown error'];
@@ -1732,12 +1826,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           const savedProfile = resp.data;
-          // Update form id (for new profiles)
-          if (profileFormId) profileFormId.value = savedProfile.user_id || '';
-          if (profileFormTitle) profileFormTitle.textContent = 'Edit Profile';
-          if (btnCancelEdit) btnCancelEdit.classList.remove('hidden');
-          if (btnDeleteProfile) btnDeleteProfile.classList.remove('hidden');
-
           // Set as active user
           activeUserId = savedProfile.user_id;
           activeUserProfile = savedProfile;
@@ -1745,15 +1833,17 @@ document.addEventListener('DOMContentLoaded', () => {
           updateNavbarUserDisplay(activeUserProfile);
           updateProfileCardDisplay(activeUserProfile);
 
+          // Populate form in edit mode for this profile
+          populateFormForEdit(savedProfile);
+
           // Reload profile list
           loadProfileList();
 
           if (profileSaveSuccess) {
             const action = isEdit ? 'updated' : 'created';
-            const name = savedProfile.name || 'Profile';
-            if (profileSaveMsg) profileSaveMsg.textContent = `${name} ${action} and set as active.`;
+            const name = savedProfile.display_name || savedProfile.name || 'Profile';
+            if (profileSaveMsg) profileSaveMsg.textContent = `${name} ${action} and activated.`;
             profileSaveSuccess.classList.remove('hidden');
-            setTimeout(() => profileSaveSuccess.classList.add('hidden'), 4000);
           }
 
           // Recalculate if food data is loaded
@@ -1762,7 +1852,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         })
         .catch(err => {
-          if (btnSaveProfile) { btnSaveProfile.disabled = false; btnSaveProfile.textContent = 'Save Profile'; }
+          if (btnSaveProfile) { btnSaveProfile.disabled = false; btnSaveProfile.textContent = isEdit ? 'Update Profile' : 'Save Profile'; }
           alert('Save failed: ' + err.message);
         });
     });

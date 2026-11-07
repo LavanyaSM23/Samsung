@@ -154,11 +154,8 @@ def validate_profile_data(data: dict) -> Tuple[bool, List[str]]:
     errors: List[str] = []
 
     # display_name — required; accept 'name' fallback if provided
-    if not data.get("display_name") and data.get("name"):
-        data["display_name"] = str(data["name"]).strip()
-
-    name = data.get("display_name", "")
-    if not name or not str(name).strip():
+    raw_name = data.get("display_name") or data.get("name")
+    if not raw_name or not str(raw_name).strip():
         errors.append("display_name is required and cannot be empty.")
 
     # age
@@ -750,28 +747,34 @@ def _build_profile(data: dict) -> dict:
     """Construct a full profile dict with defaults and computed fields."""
     now = _now_utc()
     user_id = str(data.get("user_id") or uuid.uuid4())
+    d_name = str(data.get("display_name") or data.get("name") or "Unnamed Profile").strip()
 
     profile = {
         # Identity
         "user_id": user_id,
-        "display_name": str(data["display_name"]).strip(),
+        "display_name": d_name,
+        "name": d_name,
         "created_at": now,
         "updated_at": now,
         # Demographics
         "age": data.get("age"),
-        "gender": data.get("gender"),
+        "gender": data.get("gender") or data.get("sex"),
+        "sex": data.get("sex") or data.get("gender"),
         "height_cm": data.get("height_cm"),
         "weight_kg": data.get("weight_kg"),
         # Activity & Goal
         "activity_level": data.get("activity_level"),
-        "dietary_goal": data.get("dietary_goal"),
+        "dietary_goal": data.get("dietary_goal") or data.get("nutrition_goal"),
+        "nutrition_goal": data.get("nutrition_goal") or data.get("dietary_goal"),
         # Food preferences
         "dietary_preference": data.get("dietary_preference"),
         "preferred_cuisines": data.get("preferred_cuisines", []),
         "disliked_foods": data.get("disliked_foods", []),
         # Allergies & restrictions
-        "allergies": data.get("allergies", []),
-        "dietary_restrictions": data.get("dietary_restrictions", []),
+        "allergies": data.get("allergies") or data.get("food_allergies", []),
+        "food_allergies": data.get("food_allergies") or data.get("allergies", []),
+        "dietary_restrictions": data.get("dietary_restrictions") or data.get("food_restrictions", []),
+        "food_restrictions": data.get("food_restrictions") or data.get("dietary_restrictions", []),
         # Lifestyle
         "budget": data.get("budget"),
         "max_cooking_time_mins": data.get("max_cooking_time_mins", 60),
@@ -846,11 +849,19 @@ def update_profile(user_id: str, updates: dict) -> Optional[dict]:
     if existing is None:
         return None
 
+    if updates.get("name") and not updates.get("display_name"):
+        updates["display_name"] = str(updates["name"]).strip()
+    if updates.get("display_name"):
+        updates["name"] = str(updates["display_name"]).strip()
+
     # Merge updates (never overwrite user_id or created_at)
     merged = {**existing, **updates}
     merged["user_id"] = user_id
     merged["created_at"] = existing["created_at"]
     merged["updated_at"] = _now_utc()
+    d_name = str(merged.get("display_name") or merged.get("name") or "Unnamed Profile").strip()
+    merged["display_name"] = d_name
+    merged["name"] = d_name
 
     ok, errors = validate_profile_data(merged)
     if not ok:
@@ -866,7 +877,7 @@ def update_profile(user_id: str, updates: dict) -> Optional[dict]:
             """,
             (
                 merged["display_name"],
-                merged.get("gender"),
+                merged.get("gender") or merged.get("sex"),
                 merged.get("age"),
                 merged["updated_at"],
                 json.dumps(merged),
@@ -894,13 +905,47 @@ def delete_profile(user_id: str) -> bool:
 
 
 def list_profiles() -> List[dict]:
-    """Return summary list: user_id, display_name, created_at for all profiles."""
+    """Return summary list of all profiles with display_name, name, demographics and computed BMI."""
     conn = _get_connection()
     try:
         rows = conn.execute(
-            "SELECT user_id, display_name, created_at FROM user_profiles ORDER BY created_at DESC"
+            "SELECT user_id, display_name, gender, age, created_at, profile_blob FROM user_profiles ORDER BY created_at DESC"
         ).fetchall()
-        return [{"user_id": r["user_id"], "display_name": r["display_name"], "created_at": r["created_at"]} for r in rows]
+        result = []
+        for r in rows:
+            blob = {}
+            if r["profile_blob"]:
+                try:
+                    blob = json.loads(r["profile_blob"])
+                except Exception:
+                    pass
+            d_name = r["display_name"] or blob.get("display_name") or blob.get("name") or "Unnamed Profile"
+            entry = {
+                "user_id": r["user_id"],
+                "display_name": d_name,
+                "name": d_name,
+                "gender": r["gender"] or blob.get("gender") or blob.get("sex"),
+                "sex": blob.get("sex") or r["gender"] or blob.get("gender"),
+                "age": r["age"] or blob.get("age"),
+                "height_cm": blob.get("height_cm"),
+                "weight_kg": blob.get("weight_kg"),
+                "activity_level": blob.get("activity_level"),
+                "dietary_preference": blob.get("dietary_preference"),
+                "nutrition_goal": blob.get("nutrition_goal") or blob.get("dietary_goal"),
+                "created_at": r["created_at"],
+            }
+            h = blob.get("height_cm")
+            w = blob.get("weight_kg")
+            if h and w:
+                try:
+                    hf = float(h)
+                    wf = float(w)
+                    if hf > 0 and wf > 0:
+                        entry["bmi"] = round(wf / ((hf / 100) ** 2), 1)
+                except (ValueError, TypeError):
+                    pass
+            result.append(entry)
+        return result
     finally:
         conn.close()
 
