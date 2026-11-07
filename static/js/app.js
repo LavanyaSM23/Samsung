@@ -145,21 +145,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateNavbarUserDisplay(profile) {
-    if (!profile) {
-      if (activeUserName) activeUserName.textContent = 'No Profile Set';
-      if (activeUserPill) {
-        activeUserPill.style.background = 'rgba(107, 114, 128, 0.08)';
-        activeUserPill.style.borderColor = 'rgba(107, 114, 128, 0.25)';
-        activeUserPill.style.color = 'var(--text-secondary)';
-      }
-      return;
+    if (activeUserName) {
+      // Top-right continues showing the authenticated account name
+      activeUserName.textContent = 'User';
     }
-    const displayName = profile.display_name || profile.name || 'Unnamed Profile';
-    if (activeUserName) activeUserName.textContent = displayName;
     if (activeUserPill) {
-      activeUserPill.style.background = 'rgba(16, 185, 129, 0.12)';
-      activeUserPill.style.borderColor = 'rgba(16, 185, 129, 0.35)';
-      activeUserPill.style.color = 'var(--accent-emerald)';
+      activeUserPill.title = profile
+        ? `Account: User (Active Profile: ${profile.display_name || profile.name})`
+        : 'Account: User (No Profile Selected)';
+      activeUserPill.style.background = profile ? 'rgba(16, 185, 129, 0.12)' : 'rgba(107, 114, 128, 0.08)';
+      activeUserPill.style.borderColor = profile ? 'rgba(16, 185, 129, 0.35)' : 'rgba(107, 114, 128, 0.25)';
+      activeUserPill.style.color = profile ? 'var(--accent-emerald)' : 'var(--text-secondary)';
     }
   }
 
@@ -180,11 +176,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (profile.nutrition_goal) desc += profile.nutrition_goal.replace(/_/g, ' ');
     if (profileDescDisplay) profileDescDisplay.textContent = desc || 'Personal profile active.';
     
-    // Show calorie target from computed data
+    // Show calorie target from computed data or calculate dynamically
     if (profile.daily_calorie_target) {
       if (profileRdaBadge) profileRdaBadge.textContent = `${Math.round(profile.daily_calorie_target).toLocaleString()} kcal / day`;
-    } else if (profileRdaBadge) {
-      profileRdaBadge.textContent = '-- kcal / day';
+    } else {
+      const h = parseFloat(profile.height_cm);
+      const w = parseFloat(profile.weight_kg);
+      const a = parseInt(profile.age);
+      const s = profile.sex || profile.gender;
+      if (h && w && a && s) {
+        const bmr = (s === 'male') ? (10 * w + 6.25 * h - 5 * a + 5) : (10 * w + 6.25 * h - 5 * a - 161);
+        const actMap = { sedentary: 1.2, lightly_active: 1.375, moderately_active: 1.55, very_active: 1.725, extra_active: 1.9 };
+        const mult = actMap[profile.activity_level] || 1.2;
+        const goalAdjMap = { weight_loss: -400, weight_gain: 300, muscle_gain: 250, maintain_weight: 0, general_wellness: 0 };
+        const adj = goalAdjMap[profile.nutrition_goal || profile.dietary_goal] !== undefined ? goalAdjMap[profile.nutrition_goal || profile.dietary_goal] : 0;
+        const target = Math.round(bmr * mult + adj);
+        if (profileRdaBadge) profileRdaBadge.textContent = `${target.toLocaleString()} kcal / day`;
+      } else if (profileRdaBadge) {
+        profileRdaBadge.textContent = '-- kcal / day';
+      }
     }
     
     // Map to ICMR profile key for backend compatibility
@@ -1784,61 +1794,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initial load: restore active user profile from localStorage or database
-  loadProfileList();
-
-  if (activeUserId) {
-    fetch(`/api/profile/${activeUserId}`)
-      .then(res => res.json())
-      .then(payload => {
-        if (payload.success && payload.data) {
-          activeUserProfile = payload.data;
-          updateNavbarUserDisplay(activeUserProfile);
-          updateProfileCardDisplay(activeUserProfile);
-          populateFormForEdit(activeUserProfile);
-        } else {
-          // Profile no longer exists - clear stored id
-          activeUserId = null;
-          localStorage.removeItem('nutrisense_active_user_id');
-          updateNavbarUserDisplay(null);
-          updateProfileCardDisplay(null);
-        }
-      })
-      .catch(() => {
-        updateNavbarUserDisplay(null);
-        updateProfileCardDisplay(null);
-      });
-  } else {
-    // Check if any profiles exist in DB to auto-select the most recent
-    fetch('/api/user-profiles')
-      .then(res => res.json())
-      .then(payload => {
-        if (payload.success && payload.data && payload.data.length > 0) {
-          const first = payload.data[0];
-          activeUserId = first.user_id;
-          localStorage.setItem('nutrisense_active_user_id', activeUserId);
-          fetch(`/api/profile/${activeUserId}`)
-            .then(r => r.json())
-            .then(p => {
-              if (p.success && p.data) {
-                activeUserProfile = p.data;
-                updateNavbarUserDisplay(activeUserProfile);
-                updateProfileCardDisplay(activeUserProfile);
-                populateFormForEdit(activeUserProfile);
-                loadProfileList();
-              }
-            });
-        } else {
-          updateNavbarUserDisplay(null);
-          updateProfileCardDisplay(null);
-        }
-      })
-      .catch(() => {
-        updateNavbarUserDisplay(null);
-        updateProfileCardDisplay(null);
-      });
-  }
-
   // ============================================================
   // Profile Management (My Nutrition Profile tab)
   // ============================================================
@@ -1992,14 +1947,16 @@ document.addEventListener('DOMContentLoaded', () => {
           const isCurrentActive = (activeUserId === p.user_id);
           item.className = `profile-list-item${isCurrentActive ? ' active-profile' : ''}`;
 
-          const displayName = (p.display_name || p.name || 'Unnamed Profile').trim();
-          const initial = displayName.charAt(0).toUpperCase() || 'U';
+          const rawDisplayName = (p.display_name || p.name || '').trim();
+          const isMissing = !rawDisplayName || rawDisplayName.toLowerCase() === 'user' || rawDisplayName.toLowerCase() === 'unnamed profile';
+          const displayName = isMissing ? 'Incomplete Profile' : rawDisplayName;
+          const initial = isMissing ? '!' : displayName.charAt(0).toUpperCase();
 
           const metaParts = [];
           if (p.age) metaParts.push(`${p.age} yrs`);
           if (p.sex || p.gender) metaParts.push(p.sex || p.gender);
           if (p.activity_level) metaParts.push(p.activity_level.replace(/_/g, ' '));
-          const metaString = metaParts.length > 0 ? metaParts.join(' · ') : 'Profile saved';
+          const metaString = metaParts.length > 0 ? metaParts.join(' · ') : (isMissing ? 'Name required' : 'Profile saved');
 
           const bmiBadge = p.bmi ? `<span class="profile-list-bmi-pill">BMI ${p.bmi}</span>` : '';
           const activeBadge = isCurrentActive
@@ -2091,7 +2048,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function resetForm() {
     if (!profileForm) return;
     profileForm.reset();
-    if (pfBudget) pfBudget.value = 'medium';
     if (profileFormId) profileFormId.value = '';
     if (profileFormTitle) profileFormTitle.textContent = 'Create New Profile';
     if (profileFormStatus) {
@@ -2104,10 +2060,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (profileFormErrors) { profileFormErrors.innerHTML = ''; profileFormErrors.classList.add('hidden'); }
     if (profileSaveSuccess) profileSaveSuccess.classList.add('hidden');
     if (bmiPreviewCard) bmiPreviewCard.classList.add('hidden');
+    if (pfName) {
+      pfName.value = '';
+      pfName.placeholder = 'e.g. Priya Sharma';
+      setTimeout(() => pfName.focus(), 50);
+    }
+    if (pfAge) pfAge.value = '';
+    if (pfSex) pfSex.value = '';
+    if (pfHeight) pfHeight.value = '';
+    if (pfWeight) pfWeight.value = '';
+    if (pfActivity) pfActivity.value = 'sedentary';
+    if (pfDiet) pfDiet.value = 'omnivore';
+    if (pfGoal) pfGoal.value = 'maintain_weight';
+    if (pfBudget) pfBudget.value = 'medium';
+    if (pfAllergies) pfAllergies.value = '';
+    if (pfRestrictions) pfRestrictions.value = '';
   }
 
   if (btnNewProfile) {
-    btnNewProfile.addEventListener('click', resetForm);
+    btnNewProfile.addEventListener('click', () => {
+      resetForm();
+      const panel = document.querySelector('.profile-form-panel');
+      if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
   }
 
   if (btnCancelEdit) {
@@ -2246,6 +2223,70 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
   }
+
+
+  // ============================================================
+  // Initial Load: Restore active profile and load saved profile list
+  // (Called safely after all variables and functions are defined)
+  // ============================================================
+  function initProfileSystem() {
+    loadProfileList();
+
+    if (activeUserId) {
+      fetch(`/api/profile/${activeUserId}`)
+        .then(res => res.json())
+        .then(payload => {
+          if (payload.success && payload.data) {
+            activeUserProfile = payload.data;
+            updateNavbarUserDisplay(activeUserProfile);
+            updateProfileCardDisplay(activeUserProfile);
+            populateFormForEdit(activeUserProfile);
+          } else {
+            // Profile no longer exists - clear stored id
+            activeUserId = null;
+            localStorage.removeItem('nutrisense_active_user_id');
+            updateNavbarUserDisplay(null);
+            updateProfileCardDisplay(null);
+          }
+        })
+        .catch(() => {
+          updateNavbarUserDisplay(null);
+          updateProfileCardDisplay(null);
+        });
+    } else {
+      // Check if any profiles exist in DB to auto-select the most recent
+      fetch('/api/user-profiles')
+        .then(res => res.json())
+        .then(payload => {
+          if (payload.success && payload.data && payload.data.length > 0) {
+            const first = payload.data[0];
+            activeUserId = first.user_id;
+            localStorage.setItem('nutrisense_active_user_id', activeUserId);
+            fetch(`/api/profile/${activeUserId}`)
+              .then(r => r.json())
+              .then(p => {
+                if (p.success && p.data) {
+                  activeUserProfile = p.data;
+                  updateNavbarUserDisplay(activeUserProfile);
+                  updateProfileCardDisplay(activeUserProfile);
+                  populateFormForEdit(activeUserProfile);
+                  loadProfileList();
+                }
+              });
+          } else {
+            updateNavbarUserDisplay(null);
+            updateProfileCardDisplay(null);
+          }
+        })
+        .catch(() => {
+          updateNavbarUserDisplay(null);
+          updateProfileCardDisplay(null);
+        });
+    }
+  }
+
+  // Run initialization
+  initProfileSystem();
 
 });
 
