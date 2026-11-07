@@ -1016,26 +1016,102 @@ document.addEventListener('DOMContentLoaded', () => {
   const labelHealthDisclaimer = document.getElementById('labelHealthDisclaimer');
   const labelOcrDisclaimer = document.getElementById('labelOcrDisclaimer');
 
-  if (labelDropzone && labelFileInput) {
-    // Browse button triggers file input
-    btnLabelBrowse.addEventListener('click', (e) => {
-      e.stopPropagation();
-      labelFileInput.click();
+  // Packaged Food Label Scanner DOM elements
+  const modeTabPhotos = document.getElementById('modeTabPhotos');
+  const modeTabManual = document.getElementById('modeTabManual');
+  const panelModePhotos = document.getElementById('panelModePhotos');
+  const panelModeManual = document.getElementById('panelModeManual');
+  const labelThumbnailsStrip = document.getElementById('labelThumbnailsStrip');
+  const manualProductSearchInput = document.getElementById('manualProductSearchInput');
+  const manualIngredientsInput = document.getElementById('manualIngredientsInput');
+  const btnAnalyzePack = document.getElementById('btnAnalyzePack');
+  const labelNovaBadge = document.getElementById('labelNovaBadge');
+  const labelHiddenInsightsBanner = document.getElementById('labelHiddenInsightsBanner');
+  const labelIntelTabs = document.getElementById('labelIntelTabs');
+  const tabBtnIngredients = document.getElementById('tabBtnIngredients');
+  const tabBtnNutrition = document.getElementById('tabBtnNutrition');
+  const tabBtnAlternatives = document.getElementById('tabBtnAlternatives');
+  const viewIngredientsTab = document.getElementById('viewIngredientsTab');
+  const viewNutritionTab = document.getElementById('viewNutritionTab');
+  const viewAlternativesTab = document.getElementById('viewAlternativesTab');
+  const labelIngredientsContainer = document.getElementById('labelIngredientsContainer');
+  const labelBenefitsList = document.getElementById('labelBenefitsList');
+  const labelAlternativesContainer = document.getElementById('labelAlternativesContainer');
+  const labelRawOcrBox = document.getElementById('labelRawOcrBox');
+
+  let selectedLabelFiles = [];
+
+  // Mode Tab Switcher (Photos vs Manual)
+  if (modeTabPhotos && modeTabManual) {
+    modeTabPhotos.addEventListener('click', () => {
+      modeTabPhotos.classList.add('active');
+      modeTabManual.classList.remove('active');
+      if (panelModePhotos) panelModePhotos.classList.remove('hidden');
+      if (panelModeManual) panelModeManual.classList.add('hidden');
     });
 
+    modeTabManual.addEventListener('click', () => {
+      modeTabManual.classList.add('active');
+      modeTabPhotos.classList.remove('active');
+      if (panelModeManual) panelModeManual.classList.remove('hidden');
+      if (panelModePhotos) panelModePhotos.classList.add('hidden');
+      if (manualProductSearchInput) manualProductSearchInput.focus();
+    });
+  }
+
+  // Popular product pills quick search
+  const popularPills = document.querySelectorAll('.popular-pill');
+  popularPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      const q = pill.getAttribute('data-query');
+      if (manualProductSearchInput) {
+        manualProductSearchInput.value = q;
+      }
+      performProductLookup(q);
+    });
+  });
+
+  // Intel Sectional Tabs (Ingredients vs Nutrition vs Alternatives)
+  const intelTabBtns = [tabBtnIngredients, tabBtnNutrition, tabBtnAlternatives];
+  const intelTabViews = {
+    viewIngredientsTab: viewIngredientsTab,
+    viewNutritionTab: viewNutritionTab,
+    viewAlternativesTab: viewAlternativesTab
+  };
+
+  intelTabBtns.forEach(btn => {
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const targetViewId = btn.getAttribute('data-tab');
+        intelTabBtns.forEach(b => b && b.classList.remove('active'));
+        btn.classList.add('active');
+
+        Object.keys(intelTabViews).forEach(vId => {
+          const v = intelTabViews[vId];
+          if (v) {
+            if (vId === targetViewId) v.classList.remove('hidden');
+            else v.classList.add('hidden');
+          }
+        });
+      });
+    }
+  });
+
+  // Multi-File Upload & Drag-and-drop
+  if (labelDropzone && labelFileInput) {
+    if (btnLabelBrowse) {
+      btnLabelBrowse.addEventListener('click', (e) => {
+        e.stopPropagation();
+        labelFileInput.click();
+      });
+    }
+
     labelDropzone.addEventListener('click', (e) => {
-      if (e.target !== btnChangeLabelImage && !labelPreviewContainer.contains(e.target)) {
+      if (!e.target.closest('.label-thumb-remove')) {
         labelFileInput.click();
       }
     });
 
-    btnChangeLabelImage.addEventListener('click', (e) => {
-      e.stopPropagation();
-      labelFileInput.value = '';
-      labelFileInput.click();
-    });
-
-    // Drag-and-drop
     ['dragenter', 'dragover'].forEach(eventName => {
       labelDropzone.addEventListener(eventName, (e) => {
         e.preventDefault();
@@ -1056,59 +1132,126 @@ document.addEventListener('DOMContentLoaded', () => {
       const dt = e.dataTransfer;
       const files = dt.files;
       if (files && files.length > 0) {
-        handleLabelFile(files[0]);
+        addLabelFiles(files);
       }
     });
 
     labelFileInput.addEventListener('change', (e) => {
       const files = e.target.files;
       if (files && files.length > 0) {
-        handleLabelFile(files[0]);
+        addLabelFiles(files);
       }
     });
   }
 
-  function handleLabelFile(file) {
-    if (!file.type.match('image.*')) {
-      alert('Please upload a valid image file (JPG, PNG, WEBP).');
+  function addLabelFiles(fileList) {
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      if (f.type.match('image.*') && selectedLabelFiles.length < 4) {
+        selectedLabelFiles.push(f);
+      }
+    }
+    renderThumbnails();
+  }
+
+  function renderThumbnails() {
+    if (!labelThumbnailsStrip) return;
+    labelThumbnailsStrip.innerHTML = '';
+
+    if (selectedLabelFiles.length === 0) {
+      labelThumbnailsStrip.classList.add('hidden');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      labelImagePreview.src = e.target.result;
-      labelDropzonePrompt.classList.add('hidden');
-      labelPreviewContainer.classList.remove('hidden');
-    };
-    reader.readAsDataURL(file);
+    labelThumbnailsStrip.classList.remove('hidden');
 
-    // Call OCR endpoint
-    performLabelOcr(file);
+    selectedLabelFiles.forEach((file, index) => {
+      const card = document.createElement('div');
+      card.className = 'label-thumb-card';
+
+      const img = document.createElement('img');
+      img.className = 'label-thumb-img';
+      img.alt = `Photo ${index + 1}`;
+
+      const reader = new FileReader();
+      reader.onload = (e) => { img.src = e.target.result; };
+      reader.readAsDataURL(file);
+
+      const rmBtn = document.createElement('button');
+      rmBtn.type = 'button';
+      rmBtn.className = 'label-thumb-remove';
+      rmBtn.innerHTML = '&times;';
+      rmBtn.title = 'Remove photo';
+      rmBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedLabelFiles.splice(index, 1);
+        renderThumbnails();
+      });
+
+      const badge = document.createElement('div');
+      badge.className = 'label-thumb-badge';
+      badge.textContent = index === 0 ? 'Side 1' : `Side ${index + 1}`;
+
+      card.appendChild(img);
+      card.appendChild(rmBtn);
+      card.appendChild(badge);
+      labelThumbnailsStrip.appendChild(card);
+    });
   }
 
-  function performLabelOcr(file) {
+  // Trigger Analysis Button
+  if (btnAnalyzePack) {
+    btnAnalyzePack.addEventListener('click', () => {
+      const isManual = modeTabManual && modeTabManual.classList.contains('active');
+
+      if (isManual) {
+        const query = manualProductSearchInput ? manualProductSearchInput.value.trim() : '';
+        const rawIng = manualIngredientsInput ? manualIngredientsInput.value.trim() : '';
+
+        if (!query && !rawIng) {
+          alert('Please enter a packaged product name or paste an ingredient list to analyze.');
+          if (manualProductSearchInput) manualProductSearchInput.focus();
+          return;
+        }
+
+        if (query) {
+          performProductLookup(query);
+        } else {
+          performIngredientsTextAnalysis(rawIng);
+        }
+      } else {
+        if (selectedLabelFiles.length === 0) {
+          alert('Please select or drop at least one product photo (front, nutrition table, or ingredients list).');
+          if (labelFileInput) labelFileInput.click();
+          return;
+        }
+        performMultiLabelOcr(selectedLabelFiles);
+      }
+    });
+  }
+
+  // Multi-image OCR Call
+  function performMultiLabelOcr(files) {
     if (labelEmptyState) labelEmptyState.classList.add('hidden');
     if (labelResultsContent) labelResultsContent.classList.add('hidden');
     if (labelLoadingState) labelLoadingState.classList.remove('hidden');
     if (labelHealthCard) labelHealthCard.classList.add('hidden');
 
     const formData = new FormData();
-    formData.append('file', file);
+    files.forEach(f => formData.append('files', f));
+    if (activeUserId) formData.append('user_id', activeUserId);
+    formData.append('user_profile', activeProfileKey || 'adult_male_sedentary');
 
     fetch('/api/scan-label', {
       method: 'POST',
       body: formData
     })
       .then(res => {
-        if (!res.ok) {
-          throw new Error(`Server returned HTTP ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
         return res.json();
       })
       .then(payload => {
-        if (!payload.success) {
-          throw new Error(payload.error || 'Failed to scan label.');
-        }
+        if (!payload.success) throw new Error(payload.error || 'Failed to scan label.');
         renderLabelResults(payload.data);
       })
       .catch(err => {
@@ -1119,11 +1262,74 @@ document.addEventListener('DOMContentLoaded', () => {
           const title = labelEmptyState.querySelector('.empty-title');
           const text = labelEmptyState.querySelector('.empty-text');
           if (title) title.textContent = 'Label Scan Failed';
-          if (text) text.textContent = `Error: ${err.message}. Please try again with a clearer image.`;
+          if (text) text.textContent = `Error: ${err.message}. Please try again with clearer photos.`;
         }
       });
   }
 
+  // Direct Product Catalog Lookup
+  function performProductLookup(query) {
+    if (labelEmptyState) labelEmptyState.classList.add('hidden');
+    if (labelResultsContent) labelResultsContent.classList.add('hidden');
+    if (labelLoadingState) labelLoadingState.classList.remove('hidden');
+    if (labelHealthCard) labelHealthCard.classList.add('hidden');
+
+    fetch('/api/scan-label', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_name: query,
+        user_id: activeUserId || undefined,
+        user_profile: activeProfileKey || 'adult_male_sedentary'
+      })
+    })
+      .then(res => res.json())
+      .then(payload => {
+        if (!payload.success) throw new Error(payload.error || 'Product lookup failed.');
+        renderLabelResults(payload.data);
+      })
+      .catch(err => {
+        console.error('Lookup Error:', err);
+        if (labelLoadingState) labelLoadingState.classList.add('hidden');
+        if (labelEmptyState) {
+          labelEmptyState.classList.remove('hidden');
+          const title = labelEmptyState.querySelector('.empty-title');
+          const text = labelEmptyState.querySelector('.empty-text');
+          if (title) title.textContent = 'Product Not Found';
+          if (text) text.textContent = `Could not find "${query}" in quick catalog. Upload photo of the packet for instant OCR.`;
+        }
+      });
+  }
+
+  // Direct Raw Ingredients Analysis
+  function performIngredientsTextAnalysis(text) {
+    if (labelEmptyState) labelEmptyState.classList.add('hidden');
+    if (labelResultsContent) labelResultsContent.classList.add('hidden');
+    if (labelLoadingState) labelLoadingState.classList.remove('hidden');
+    if (labelHealthCard) labelHealthCard.classList.add('hidden');
+
+    fetch('/api/scan-label', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ingredients_text: text,
+        user_id: activeUserId || undefined,
+        user_profile: activeProfileKey || 'adult_male_sedentary'
+      })
+    })
+      .then(res => res.json())
+      .then(payload => {
+        if (!payload.success) throw new Error(payload.error || 'Analysis failed.');
+        renderLabelResults(payload.data);
+      })
+      .catch(err => {
+        console.error('Text Analysis Error:', err);
+        if (labelLoadingState) labelLoadingState.classList.add('hidden');
+        if (labelEmptyState) labelEmptyState.classList.remove('hidden');
+      });
+  }
+
+  // Main Render Results Engine
   function renderLabelResults(data) {
     currentLabelData = data;
     labelUserCorrections = {};
@@ -1132,182 +1338,307 @@ document.addEventListener('DOMContentLoaded', () => {
     if (labelEmptyState) labelEmptyState.classList.add('hidden');
     if (labelResultsContent) labelResultsContent.classList.remove('hidden');
 
-    // 1. Product & Brand
+    // 1. Product Snapshot
     const product = data.product || {};
-    labelProductName.textContent = product.product_name || 'Product (Name not visible on label)';
-    labelBrand.textContent = product.brand ? `Brand: ${product.brand}` : 'Brand: Not detected';
+    labelProductName.textContent = product.product_name || 'Packaged Product';
+    labelBrand.textContent = product.brand ? `Brand: ${product.brand}` : 'Brand: Unspecified';
 
-    // 2. Readability Badge
-    const read = data.readability || {};
-    const qual = (read.quality || 'UNKNOWN').toUpperCase();
-    let badgeClass = 'readability-partial';
-    if (qual === 'GOOD') badgeClass = 'readability-good';
-    else if (qual === 'LOW') badgeClass = 'readability-low';
-    else if (qual === 'UNREADABLE') badgeClass = 'readability-unreadable';
-
-    const confPct = Math.round((read.mean_confidence || 0) * 100);
-    labelReadabilityBadge.innerHTML = `<span class="readability-badge ${badgeClass}">${qual} (${confPct}% confidence)</span>`;
-
-    // 3. Extraction Note
-    if (data.extraction_note && data.extraction_note !== 'Extraction completed successfully.') {
-      labelExtractionNoteText.textContent = data.extraction_note;
-      labelExtractionNote.classList.remove('hidden');
-    } else {
-      labelExtractionNote.classList.add('hidden');
-    }
-
-    // 4. Serving Size & Basis
     const serving = data.serving || {};
     let servingStr = '';
     if (serving.serving_size) {
-      servingStr = `${serving.serving_size} ${serving.serving_unit || 'g'}`;
+      servingStr = `Serving: ${serving.serving_size} ${serving.serving_unit || 'g'}`;
       if (serving.servings_per_container) {
-        servingStr += ` (${serving.servings_per_container} servings/pack)`;
+        servingStr += ` (${serving.servings_per_container} per pack)`;
       }
-    } else {
-      servingStr = 'Not declared on visible packaging';
     }
     labelServingVal.textContent = servingStr;
-    labelNutritionBasis.textContent = serving.nutrition_basis ? `Basis: ${serving.nutrition_basis}` : 'Basis: Declared values';
+    labelNutritionBasis.textContent = serving.nutrition_basis ? `Basis: ${serving.nutrition_basis}` : 'Basis: Declared Values';
 
-    // 5. Nutrition Table (editable)
-    labelNutritionBody.innerHTML = '';
-    const nutrition = data.nutrition || {};
+    // 2. Readability & Processing Grade
+    const read = data.readability || {};
+    const qual = (read.quality || 'GOOD').toUpperCase();
+    let badgeClass = 'readability-good';
+    if (qual === 'LOW') badgeClass = 'readability-low';
+    else if (qual === 'PARTIAL') badgeClass = 'readability-partial';
+    const confPct = Math.round((read.mean_confidence || 0.95) * 100);
+    labelReadabilityBadge.innerHTML = `<span class="readability-badge ${badgeClass}">${qual} (${confPct}% confidence)</span>`;
 
-    NUTRIENT_DISPLAY_META.forEach(nMeta => {
-      const entry = nutrition[nMeta.key] || (nMeta.altKey ? nutrition[nMeta.altKey] : null);
-      const hasVal = entry && entry.value !== null && entry.value !== undefined;
-      const row = document.createElement('tr');
+    const intel = data.ingredient_intelligence || {};
+    const grade = intel.processing_grade || {};
+    if (labelNovaBadge) {
+      labelNovaBadge.textContent = grade.classification || 'Ultra-Processed (NOVA 4)';
+      labelNovaBadge.className = `nova-badge ${grade.badge_class || 'nova-4'}`;
+      if (grade.color) labelNovaBadge.style.color = grade.color;
+    }
 
-      const nameCell = document.createElement('td');
-      nameCell.className = 'nutrient-name';
-      nameCell.textContent = nMeta.label;
+    // 3. Critical Insights & Hidden Ingredients Banner
+    if (labelHiddenInsightsBanner) {
+      labelHiddenInsightsBanner.innerHTML = '';
+      const insights = intel.hidden_insights || [];
+      const profileAlerts = intel.profile_alerts || [];
 
-      const valCell = document.createElement('td');
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.step = 'any';
-      input.className = 'editable-val';
-      input.setAttribute('data-key', nMeta.key);
-      input.placeholder = '—';
-      if (hasVal) {
-        input.value = entry.value;
+      // Render profile alerts first
+      profileAlerts.forEach(pa => {
+        const card = document.createElement('div');
+        card.className = `label-insight-card severity-${pa.severity || 'HIGH'}`;
+        card.innerHTML = `
+          <div class="insight-icon">⚠️</div>
+          <div class="insight-body">
+            <div class="insight-title">${pa.profile} Alert</div>
+            <div class="insight-desc">${pa.message}</div>
+          </div>
+        `;
+        labelHiddenInsightsBanner.appendChild(card);
+      });
+
+      // Render hidden sugar, fat, and sodium alerts
+      insights.forEach(ins => {
+        const card = document.createElement('div');
+        card.className = `label-insight-card severity-${ins.severity || 'HIGH'}`;
+        const icon = ins.severity === 'CRITICAL' ? '🚫' : (ins.severity === 'HIGH' ? '⚠️' : 'ℹ️');
+        card.innerHTML = `
+          <div class="insight-icon">${icon}</div>
+          <div class="insight-body">
+            <div class="insight-title">${ins.title}</div>
+            <div class="insight-desc">${ins.description}</div>
+            ${ins.action_advice ? `<span class="insight-action">💡 ${ins.action_advice}</span>` : ''}
+          </div>
+        `;
+        labelHiddenInsightsBanner.appendChild(card);
+      });
+
+      if (insights.length === 0 && profileAlerts.length === 0) {
+        labelHiddenInsightsBanner.innerHTML = `
+          <div class="label-insight-card severity-INFO">
+            <div class="insight-icon">✓</div>
+            <div class="insight-body">
+              <div class="insight-title">Clean Ingredient Profile</div>
+              <div class="insight-desc">No high-risk hidden sugars, industrial trans fats, or excessive synthetic additives flagged.</div>
+            </div>
+          </div>
+        `;
       }
-
-      valCell.appendChild(input);
-
-      const unitCell = document.createElement('td');
-      unitCell.className = 'nutrient-unit';
-      unitCell.textContent = (entry && entry.unit) ? entry.unit : nMeta.unit;
-
-      const sourceCell = document.createElement('td');
-      sourceCell.className = hasVal ? 'source-badge-ocr' : 'nutrient-missing';
-      sourceCell.textContent = hasVal ? 'OCR Extracted' : 'Unavailable';
-
-      // Listen for user edits
-      input.addEventListener('input', () => {
-        input.classList.add('user-corrected');
-        sourceCell.className = 'source-badge-user';
-        sourceCell.textContent = 'User Corrected';
-
-        const newVal = input.value.trim() === '' ? null : parseFloat(input.value);
-        labelUserCorrections[nMeta.key] = {
-          original: hasVal ? entry.value : null,
-          user_value: newVal,
-          is_corrected: true
-        };
-        if (nMeta.altKey) {
-          labelUserCorrections[nMeta.altKey] = labelUserCorrections[nMeta.key];
-        }
-      });
-
-      row.appendChild(nameCell);
-      row.appendChild(valCell);
-      row.appendChild(unitCell);
-      row.appendChild(sourceCell);
-      labelNutritionBody.appendChild(row);
-    });
-
-    // 6. Ingredients
-    if (data.ingredients) {
-      labelIngredientsTxt.textContent = data.ingredients;
-      labelIngredientsSection.classList.remove('hidden');
-    } else {
-      labelIngredientsTxt.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Ingredients list was not visible on the package.</span>';
-      labelIngredientsSection.classList.remove('hidden');
     }
 
-    // 7. Allergens (3-way categorization: Declared, In Ingredients, May Contain)
+    // 4. Tab 1: Smart Ingredients Explorer
+    if (labelIngredientsContainer) {
+      labelIngredientsContainer.innerHTML = '';
+      const categorized = intel.categorized_ingredients || {};
+
+      if (Object.keys(categorized).length === 0) {
+        labelIngredientsContainer.innerHTML = `
+          <div style="font-size:0.8rem; color:var(--text-muted); font-style:italic; padding:12px 0;">
+            ${data.ingredients ? data.ingredients : 'Ingredients list was not visible on the package.'}
+          </div>
+        `;
+      } else {
+        Object.keys(categorized).forEach(catName => {
+          const ingList = categorized[catName];
+          if (!ingList || ingList.length === 0) return;
+
+          const group = document.createElement('div');
+          group.className = 'ingredient-group';
+          group.innerHTML = `<h5 class="ingredient-group-title"><span>${catName}</span> (${ingList.length})</h5>`;
+
+          const grid = document.createElement('div');
+          grid.className = 'ingredient-chips-grid';
+
+          ingList.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'ingredient-card';
+            card.innerHTML = `
+              <div class="ingredient-card-header">
+                <span class="ing-name">${item.clean_name || item.name}</span>
+                <span class="ing-cat-badge">${item.category}</span>
+              </div>
+              <div class="ing-purpose"><strong>Purpose:</strong> ${item.purpose}</div>
+              <div class="ing-relevance"><strong>Health Relevance:</strong> ${item.health_relevance}</div>
+              ${item.concerns ? `<div class="ing-purpose" style="color:var(--text-secondary);"><strong>Note:</strong> ${item.concerns}</div>` : ''}
+              <div class="ing-safety-tag">✓ ${item.safety_status}</div>
+            `;
+            grid.appendChild(card);
+          });
+
+          group.appendChild(grid);
+          labelIngredientsContainer.appendChild(group);
+        });
+      }
+    }
+
+    // Allergens Section
     const allergens = data.allergens || {};
-    labelAllergenContent.innerHTML = '';
-    const decl = allergens.declared || [];
-    const detected = allergens.detected_from_ingredients || [];
-    const may = allergens.may_contain || [];
+    if (labelAllergenContent) {
+      labelAllergenContent.innerHTML = '';
+      const decl = allergens.declared || [];
+      const detected = allergens.detected_from_ingredients || [];
+      const may = allergens.may_contain || [];
 
-    if (decl.length === 0 && detected.length === 0 && may.length === 0) {
-      labelAllergenContent.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">No specific allergen declarations or common allergens detected.</span>';
-    } else {
-      const container = document.createElement('div');
-      container.className = 'label-allergen-badges';
+      if (decl.length === 0 && detected.length === 0 && may.length === 0) {
+        labelAllergenContent.innerHTML = '<span style="color: var(--text-muted); font-size: 0.78rem; font-style: italic;">No specific allergen declarations or common allergens detected.</span>';
+      } else {
+        const container = document.createElement('div');
+        container.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px;';
 
-      decl.forEach(item => {
-        const badge = document.createElement('span');
-        badge.className = 'label-allergen-declared';
-        badge.textContent = `Contains (Declared): ${item}`;
-        container.appendChild(badge);
-      });
+        decl.forEach(item => {
+          const badge = document.createElement('span');
+          badge.className = 'label-allergen-declared';
+          badge.textContent = `Contains (Declared): ${item}`;
+          container.appendChild(badge);
+        });
 
-      detected.forEach(item => {
-        const badge = document.createElement('span');
-        badge.className = 'label-allergen-detected';
-        badge.style.cssText = 'display:inline-flex; align-items:center; padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:600; background:rgba(245, 158, 11, 0.15); color:#F59E0B; border:1px solid rgba(245, 158, 11, 0.3); margin-right:6px; margin-bottom:6px;';
-        badge.textContent = `In Ingredients: ${item}`;
-        container.appendChild(badge);
-      });
+        detected.forEach(item => {
+          const badge = document.createElement('span');
+          badge.className = 'label-allergen-detected';
+          badge.style.cssText = 'display:inline-flex; align-items:center; padding:3px 10px; border-radius:12px; font-size:0.74rem; font-weight:600; background:rgba(245, 158, 11, 0.15); color:#F59E0B; border:1px solid rgba(245, 158, 11, 0.3);';
+          badge.textContent = `In Ingredients: ${item}`;
+          container.appendChild(badge);
+        });
 
-      may.forEach(item => {
-        const badge = document.createElement('span');
-        badge.className = 'label-allergen-may';
-        badge.textContent = `May Contain (Traces): ${item}`;
-        container.appendChild(badge);
-      });
+        may.forEach(item => {
+          const badge = document.createElement('span');
+          badge.className = 'label-allergen-may';
+          badge.textContent = `May Contain: ${item}`;
+          container.appendChild(badge);
+        });
 
-      labelAllergenContent.appendChild(container);
+        labelAllergenContent.appendChild(container);
+      }
     }
 
-    // 8. Missing Fields
-    const missing = data.missing_fields || [];
-    labelMissingList.innerHTML = '';
-    if (missing.length === 0) {
-      labelMissingList.innerHTML = '<span style="color: var(--accent-emerald); font-size: 0.76rem;">All standard nutrition and product fields were successfully extracted.</span>';
-    } else {
-      missing.forEach(f => {
-        const tag = document.createElement('span');
-        tag.className = 'label-missing-tag';
-        tag.innerHTML = `&#9888; ${f.replace('nutrition.', '')}`;
-        labelMissingList.appendChild(tag);
+    // 5. Tab 2: Nutrition Table (ONLY Declared Rows)
+    if (labelNutritionBody) {
+      labelNutritionBody.innerHTML = '';
+      const nutrition = data.nutrition || {};
+      let declaredCount = 0;
+
+      NUTRIENT_DISPLAY_META.forEach(nMeta => {
+        const entry = nutrition[nMeta.key] || (nMeta.altKey ? nutrition[nMeta.altKey] : null);
+        const hasVal = entry && entry.value !== null && entry.value !== undefined;
+
+        // Consumer requirement: DO NOT display dozens of empty rows with "Unavailable"
+        if (!hasVal) return;
+
+        declaredCount++;
+        const row = document.createElement('tr');
+
+        const nameCell = document.createElement('td');
+        nameCell.className = 'nutrient-name';
+        nameCell.textContent = nMeta.label;
+
+        const valCell = document.createElement('td');
+        valCell.className = 'nutrient-declared-val';
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = 'any';
+        input.className = 'nutrient-inline-edit';
+        input.setAttribute('data-key', nMeta.key);
+        input.value = entry.value;
+
+        input.addEventListener('input', () => {
+          input.style.borderColor = 'var(--accent-purple)';
+          const newVal = input.value.trim() === '' ? null : parseFloat(input.value);
+          labelUserCorrections[nMeta.key] = {
+            original: entry.value,
+            user_value: newVal,
+            is_corrected: true
+          };
+          if (nMeta.altKey) {
+            labelUserCorrections[nMeta.altKey] = labelUserCorrections[nMeta.key];
+          }
+        });
+        valCell.appendChild(input);
+
+        const unitCell = document.createElement('td');
+        unitCell.className = 'nutrient-unit';
+        unitCell.textContent = (entry && entry.unit) ? entry.unit : nMeta.unit;
+
+        const confCell = document.createElement('td');
+        confCell.style.cssText = 'font-size: 0.72rem; color: var(--accent-emerald); font-weight: 600;';
+        confCell.textContent = entry.ocr_extracted ? '✓ Verified' : 'Declared';
+
+        row.appendChild(nameCell);
+        row.appendChild(valCell);
+        row.appendChild(unitCell);
+        row.appendChild(confCell);
+        labelNutritionBody.appendChild(row);
+      });
+
+      if (declaredCount === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `<td colspan="4" style="text-align:center; padding:18px; color:var(--text-muted); font-style:italic;">Nutrition table was not clearly visible on packaging. Click below to add values or evaluate ingredients.</td>`;
+        labelNutritionBody.appendChild(emptyRow);
+      }
+    }
+
+    // Product Positives & Benefits
+    if (labelBenefitsList) {
+      labelBenefitsList.innerHTML = '';
+      const benefits = intel.product_benefits || [];
+      if (benefits.length > 0) {
+        benefits.forEach(b => {
+          const li = document.createElement('li');
+          li.className = 'benefits-item';
+          li.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>${b}</span>
+          `;
+          labelBenefitsList.appendChild(li);
+        });
+        if (labelBenefitsContainer) labelBenefitsContainer.classList.remove('hidden');
+      } else {
+        if (labelBenefitsContainer) labelBenefitsContainer.classList.add('hidden');
+      }
+    }
+
+    // 6. Tab 3: Healthier & Affordable Alternatives
+    if (labelAlternativesContainer) {
+      labelAlternativesContainer.innerHTML = '';
+      const alts = intel.healthier_alternatives || [];
+      alts.forEach(alt => {
+        const card = document.createElement('div');
+        card.className = 'alt-food-card';
+
+        const tagsHtml = (alt.suitable_for || []).map(t => `<span class="alt-tag">${t}</span>`).join('');
+
+        card.innerHTML = `
+          <div class="alt-card-header">
+            <span class="alt-food-name">${alt.name}</span>
+            <span class="alt-price-pill">${alt.price_tier}</span>
+          </div>
+          <div class="alt-metrics-row">
+            <span class="alt-metric">${alt.calories}</span>
+            <span class="alt-metric"><span>${alt.fat_reduction}</span></span>
+          </div>
+          <div class="alt-why-better">${alt.why_better}</div>
+          <div class="alt-tags-row">${tagsHtml}</div>
+        `;
+        labelAlternativesContainer.appendChild(card);
       });
     }
 
-    // 9. OCR Disclaimer
-    labelOcrDisclaimer.textContent = data.disclaimer || (
-      'NutriSense AI extracts packaging information using OCR for personal educational reference only. ' +
-      'Missing or unreadable values are recorded as unavailable and are never fabricated. ' +
-      'Verify critical values directly against the physical packaging.'
-    );
+    // 7. Technical Details Accordion (Raw OCR)
+    if (labelRawOcrBox) {
+      labelRawOcrBox.textContent = data.ocr_text || 'No raw OCR text available.';
+    }
+    if (labelOcrDisclaimer) {
+      labelOcrDisclaimer.textContent = data.disclaimer || (
+        'NutriSense AI extracts packaging information using OCR for personal educational reference only. ' +
+        'Missing or unreadable values are recorded as unavailable and are never fabricated. ' +
+        'Verify critical values directly against the physical packaging.'
+      );
+    }
   }
 
-  // 13. Confirm Button & Health Evaluation
+  // Confirm Button & Health Evaluation
   if (btnConfirmLabel) {
     btnConfirmLabel.addEventListener('click', () => {
       if (!currentLabelData) return;
 
-      // Harvest current values from the editable table
       const confirmedNutrition = {};
-      const rows = labelNutritionBody.querySelectorAll('tr');
+      const rows = labelNutritionBody ? labelNutritionBody.querySelectorAll('tr') : [];
 
       rows.forEach(row => {
-        const input = row.querySelector('.editable-val');
+        const input = row.querySelector('.nutrient-inline-edit') || row.querySelector('.editable-val');
         if (!input) return;
         const key = input.getAttribute('data-key');
         const unit = row.querySelector('.nutrient-unit')?.textContent.trim() || 'g';
@@ -1331,7 +1662,7 @@ document.addEventListener('DOMContentLoaded', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_profile: activeProfileKey,
+          user_profile: activeProfileKey || 'adult_male_sedentary',
           user_id: activeUserId || undefined,
           nutrition: confirmedNutrition,
           user_corrections: labelUserCorrections
@@ -1359,6 +1690,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderLabelHealthEvaluation(data) {
+    if (!labelHealthCard) return;
     labelHealthCard.classList.remove('hidden');
 
     const evalData = data.health_evaluation || {};
@@ -1366,58 +1698,62 @@ document.addEventListener('DOMContentLoaded', () => {
     const verdict = evalData.verdict || 'Evaluation Complete';
 
     if (score !== null && score !== undefined) {
-      labelScoreNum.textContent = score.toFixed(1);
+      if (labelScoreNum) labelScoreNum.textContent = score.toFixed(1);
 
-      // Color circle
-      if (score >= 7.0) {
-        labelScoreCircle.style.borderColor = 'var(--accent-emerald)';
-        labelScoreCircle.style.background = 'rgba(16, 185, 129, 0.12)';
-        labelScoreNum.style.color = 'var(--accent-emerald)';
-      } else if (score >= 4.0) {
-        labelScoreCircle.style.borderColor = 'var(--accent-amber)';
-        labelScoreCircle.style.background = 'rgba(245, 158, 11, 0.12)';
-        labelScoreNum.style.color = 'var(--accent-amber)';
-      } else {
-        labelScoreCircle.style.borderColor = 'var(--accent-rose)';
-        labelScoreCircle.style.background = 'rgba(244, 63, 94, 0.12)';
-        labelScoreNum.style.color = 'var(--accent-rose)';
+      if (labelScoreCircle && labelScoreNum) {
+        if (score >= 7.0) {
+          labelScoreCircle.style.borderColor = 'var(--accent-emerald)';
+          labelScoreCircle.style.background = 'rgba(16, 185, 129, 0.12)';
+          labelScoreNum.style.color = 'var(--accent-emerald)';
+        } else if (score >= 4.0) {
+          labelScoreCircle.style.borderColor = 'var(--accent-amber)';
+          labelScoreCircle.style.background = 'rgba(245, 158, 11, 0.12)';
+          labelScoreNum.style.color = 'var(--accent-amber)';
+        } else {
+          labelScoreCircle.style.borderColor = 'var(--accent-rose)';
+          labelScoreCircle.style.background = 'rgba(244, 63, 94, 0.12)';
+          labelScoreNum.style.color = 'var(--accent-rose)';
+        }
       }
     } else {
-      labelScoreNum.textContent = '--';
-      labelScoreCircle.style.borderColor = 'var(--text-muted)';
-      labelScoreCircle.style.background = 'rgba(255, 255, 255, 0.05)';
-      labelScoreNum.style.color = 'var(--text-muted)';
+      if (labelScoreNum) labelScoreNum.textContent = '--';
+      if (labelScoreCircle) {
+        labelScoreCircle.style.borderColor = 'var(--text-muted)';
+        labelScoreCircle.style.background = 'rgba(255, 255, 255, 0.05)';
+      }
+      if (labelScoreNum) labelScoreNum.style.color = 'var(--text-muted)';
     }
 
-    labelVerdictText.textContent = verdict;
-    labelScoreProfile.textContent = `Profile: ${data.user_profile.replace(/_/g, ' ').toUpperCase()}`;
+    if (labelVerdictText) labelVerdictText.textContent = verdict;
+    if (labelScoreProfile) labelScoreProfile.textContent = `Profile: ${(data.user_profile || 'ADULT MALE').replace(/_/g, ' ').toUpperCase()}`;
 
-    // Alerts
-    labelAlertsContainer.innerHTML = '';
-    const alerts = evalData.dietary_alerts || [];
-    if (alerts.length === 0) {
-      const okDiv = document.createElement('div');
-      okDiv.className = 'dietary-alert alert-low';
-      okDiv.innerHTML = '<span class="alert-icon">&#10003;</span><span>No clinical nutrient thresholds exceeded for this profile.</span>';
-      labelAlertsContainer.appendChild(okDiv);
-    } else {
-      alerts.forEach(a => {
-        const div = document.createElement('div');
-        let sevClass = 'alert-moderate';
-        if (a.severity === 'HIGH' || a.severity === 'CRITICAL') sevClass = 'alert-critical';
-        else if (a.severity === 'INFO') sevClass = 'alert-low';
-        div.className = `dietary-alert ${sevClass}`;
+    if (labelAlertsContainer) {
+      labelAlertsContainer.innerHTML = '';
+      const alerts = evalData.dietary_alerts || [];
+      if (alerts.length === 0) {
+        const okDiv = document.createElement('div');
+        okDiv.className = 'dietary-alert alert-low';
+        okDiv.innerHTML = '<span class="alert-icon">&#10003;</span><span>No clinical nutrient thresholds exceeded for this profile.</span>';
+        labelAlertsContainer.appendChild(okDiv);
+      } else {
+        alerts.forEach(a => {
+          const div = document.createElement('div');
+          let sevClass = 'alert-moderate';
+          if (a.severity === 'HIGH' || a.severity === 'CRITICAL') sevClass = 'alert-critical';
+          else if (a.severity === 'INFO') sevClass = 'alert-low';
+          div.className = `dietary-alert ${sevClass}`;
 
-        const icon = (a.severity === 'HIGH' || a.severity === 'CRITICAL') ? '&#9888;' : '&#8505;';
-        div.innerHTML = `<span class="alert-icon">${icon}</span><span>${a.message}</span>`;
-        labelAlertsContainer.appendChild(div);
-      });
+          const icon = (a.severity === 'HIGH' || a.severity === 'CRITICAL') ? '&#9888;' : '&#8505;';
+          div.innerHTML = `<span class="alert-icon">${icon}</span><span>${a.message}</span>`;
+          labelAlertsContainer.appendChild(div);
+        });
+      }
     }
 
-    // Disclaimer
-    labelHealthDisclaimer.textContent = `${evalData.note || ''} ${data.disclaimer || ''}`;
+    if (labelHealthDisclaimer) {
+      labelHealthDisclaimer.textContent = `${evalData.note || ''} ${data.disclaimer || ''}`;
+    }
 
-    // Smooth scroll to health evaluation card
     labelHealthCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 

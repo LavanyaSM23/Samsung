@@ -847,7 +847,7 @@ _DISCLAIMER = (
 )
 
 
-def scan_label(pil_image: Image.Image) -> Dict[str, Any]:
+def scan_label(pil_image: Optional[Image.Image], user_profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Main entry point for packaged food label scanning.
     1. Preprocesses image using OpenCV (denoise, contrast enhancement, normalization).
@@ -858,7 +858,39 @@ def scan_label(pil_image: Image.Image) -> Dict[str, Any]:
     6. Trims ingredients list cleanly from manufacturer and regulatory text.
     7. Separates allergens into declared, ingredient-derived, and may-contain.
     8. Provides both structured dict and flattened extracted_data for Streamlit.
+    9. Enriches with Smart Ingredient Intelligence (INS additive lookup, hidden sugars/fats, alternatives).
     """
+    if pil_image is None:
+        empty_nutrition = {k: None for k in _NUTRIENT_PATTERNS}
+        empty_nutrition["dietary_fiber"] = None
+        return {
+            "ocr_text": "",
+            "readability": {
+                "mean_confidence": 0.0,
+                "min_confidence": 0.0,
+                "readable_bbox_count": 0,
+                "quality": "UNREADABLE"
+            },
+            "product": {"product_name": None, "brand": None, "ocr_extracted": True},
+            "serving": {
+                "serving_size": None, "serving_unit": None,
+                "nutrition_basis": None, "servings_per_container": None,
+                "ocr_extracted": True
+            },
+            "nutrition": empty_nutrition,
+            "ingredients": None,
+            "allergens": {
+                "declared": None, "detected_from_ingredients": None,
+                "may_contain": None, "all_identified_allergens": None,
+                "ocr_extracted": True
+            },
+            "missing_fields": ["ALL — no text detected in image"],
+            "extraction_note": "No image provided for label scanning.",
+            "disclaimer": _DISCLAIMER,
+            "extracted_data": {},
+            "ingredient_intelligence": None
+        }
+
     reader = _get_reader()
 
     # OpenCV preprocessing
@@ -907,7 +939,8 @@ def scan_label(pil_image: Image.Image) -> Dict[str, Any]:
                 "The image may be blurry, too dark, or not show a nutrition label."
             ),
             "disclaimer": _DISCLAIMER,
-            "extracted_data": {}
+            "extracted_data": {},
+            "ingredient_intelligence": None
         }
 
     full_text = _merge_lines(raw_results)
@@ -943,6 +976,17 @@ def scan_label(pil_image: Image.Image) -> Dict[str, Any]:
 
     extraction_note = " ".join(notes) if notes else "Extraction completed successfully."
 
+    # Build Smart Ingredient Intelligence
+    ingredient_intelligence = None
+    target_ing_text = ingredients if ingredients else (sections["ingredients"] or "")
+    if target_ing_text:
+        try:
+            from src.ingredient_intelligence import get_ingredient_analyzer
+            analyzer = get_ingredient_analyzer()
+            ingredient_intelligence = analyzer.analyze(target_ing_text, user_profile=user_profile)
+        except Exception as exc:
+            logger.warning(f"Ingredient intelligence analysis failed: {exc}")
+
     # Build flattened extracted_data dict for Streamlit and simple consumers
     flattened_data: Dict[str, Any] = {
         "product_name": product.get("product_name"),
@@ -974,5 +1018,133 @@ def scan_label(pil_image: Image.Image) -> Dict[str, Any]:
         "missing_fields": missing,
         "extraction_note": extraction_note,
         "disclaimer": _DISCLAIMER,
-        "extracted_data": flattened_data
+        "extracted_data": flattened_data,
+        "ingredient_intelligence": ingredient_intelligence
+    }
+
+
+def scan_multiple_labels(pil_images: List[Image.Image], user_profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Scans multiple photos of the same packaged product (e.g. Front, Nutrition table, Ingredients)
+    and merges the findings intelligently.
+    """
+    if not pil_images:
+        return scan_label(None, user_profile=user_profile)
+    if len(pil_images) == 1:
+        return scan_label(pil_images[0], user_profile=user_profile)
+
+    individual_scans = [scan_label(img, user_profile=user_profile) for img in pil_images]
+
+    # Pick best recognized product name and brand
+    best_product = {"product_name": None, "brand": None, "ocr_extracted": True}
+    for s in individual_scans:
+        p = s.get("product") or {}
+        if p.get("brand") and not best_product.get("brand"):
+            best_product["brand"] = p["brand"]
+        if p.get("product_name") and p.get("product_name") != "Packaged Food Product":
+            best_product["product_name"] = p["product_name"]
+
+    # Merge nutrients from whichever image captured them
+    merged_nutrition: Dict[str, Any] = {}
+    for nutrient in _NUTRIENT_PATTERNS:
+        merged_nutrition[nutrient] = None
+        for s in individual_scans:
+            val = (s.get("nutrition") or {}).get(nutrient)
+            if val and val.get("value") is not None:
+                merged_nutrition[nutrient] = val
+                break
+    merged_nutrition["dietary_fiber"] = merged_nutrition.get("dietary_fibre")
+
+    # Serving info
+    best_serving = {"serving_size": None, "serving_unit": None, "nutrition_basis": None, "servings_per_container": None, "ocr_extracted": True}
+    for s in individual_scans:
+        srv = s.get("serving") or {}
+        if srv.get("serving_size") and not best_serving.get("serving_size"):
+            best_serving["serving_size"] = srv["serving_size"]
+            best_serving["serving_unit"] = srv.get("serving_unit")
+        if srv.get("nutrition_basis") and not best_serving.get("nutrition_basis"):
+            best_serving["nutrition_basis"] = srv["nutrition_basis"]
+        if srv.get("servings_per_container") and not best_serving.get("servings_per_container"):
+            best_serving["servings_per_container"] = srv["servings_per_container"]
+
+    # Longest ingredients list
+    best_ingredients = None
+    for s in individual_scans:
+        ing = s.get("ingredients")
+        if ing and (best_ingredients is None or len(ing) > len(best_ingredients)):
+            best_ingredients = ing
+
+    # Merge allergens
+    all_decl: List[str] = []
+    all_det: List[str] = []
+    all_may: List[str] = []
+    for s in individual_scans:
+        alg = s.get("allergens") or {}
+        all_decl.extend(alg.get("declared") or [])
+        all_det.extend(alg.get("detected_from_ingredients") or [])
+        all_may.extend(alg.get("may_contain") or [])
+
+    merged_allergens = {
+        "declared": list(dict.fromkeys(all_decl)) or None,
+        "detected_from_ingredients": list(dict.fromkeys(all_det)) or None,
+        "may_contain": list(dict.fromkeys(all_may)) or None,
+        "all_identified_allergens": list(dict.fromkeys(all_decl + all_det + all_may)) or None,
+        "ocr_extracted": True
+    }
+
+    combined_ocr_text = "\n--- NEXT IMAGE ---\n".join([s.get("ocr_text", "") for s in individual_scans if s.get("ocr_text")])
+    mean_conf = float(np.mean([s.get("readability", {}).get("mean_confidence", 0.0) for s in individual_scans]))
+    best_quality = "GOOD" if any(s.get("readability", {}).get("quality") == "GOOD" for s in individual_scans) else ("PARTIAL" if any(s.get("readability", {}).get("quality") == "PARTIAL" for s in individual_scans) else "LOW")
+
+    readability = {
+        "mean_confidence": round(mean_conf, 3),
+        "min_confidence": min([s.get("readability", {}).get("min_confidence", 0.0) for s in individual_scans] or [0.0]),
+        "readable_bbox_count": sum([s.get("readability", {}).get("readable_bbox_count", 0) for s in individual_scans]),
+        "quality": best_quality
+    }
+
+    missing = _summarise_missing(merged_nutrition, best_serving, best_product, best_ingredients, merged_allergens)
+
+    # Smart Ingredient Intelligence
+    ingredient_intelligence = None
+    if best_ingredients:
+        try:
+            from src.ingredient_intelligence import get_ingredient_analyzer
+            analyzer = get_ingredient_analyzer()
+            ingredient_intelligence = analyzer.analyze(best_ingredients, user_profile=user_profile)
+        except Exception as exc:
+            logger.warning(f"Ingredient intelligence analysis failed: {exc}")
+
+    flattened_data = {
+        "product_name": best_product.get("product_name"),
+        "brand": best_product.get("brand"),
+        "serving_size": best_serving.get("serving_size"),
+        "serving_unit": best_serving.get("serving_unit"),
+        "nutrition_basis": best_serving.get("nutrition_basis"),
+        "servings_per_container": best_serving.get("servings_per_container"),
+        "ingredients": best_ingredients,
+        "allergens_declared": merged_allergens.get("declared"),
+        "allergens_detected": merged_allergens.get("detected_from_ingredients"),
+        "allergens_may_contain": merged_allergens.get("may_contain"),
+    }
+    for k, v in merged_nutrition.items():
+        if v and isinstance(v, dict):
+            try:
+                flattened_data[k] = float(v.get("value", 0))
+            except (ValueError, TypeError):
+                flattened_data[k] = v.get("value")
+
+    return {
+        "ocr_text": combined_ocr_text,
+        "readability": readability,
+        "product": best_product,
+        "serving": best_serving,
+        "nutrition": merged_nutrition,
+        "ingredients": best_ingredients,
+        "allergens": merged_allergens,
+        "missing_fields": missing,
+        "extraction_note": f"Merged analysis from {len(pil_images)} uploaded product photos.",
+        "disclaimer": _DISCLAIMER,
+        "extracted_data": flattened_data,
+        "ingredient_intelligence": ingredient_intelligence
     }

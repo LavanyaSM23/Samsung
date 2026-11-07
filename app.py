@@ -33,7 +33,12 @@ if str(WORKSPACE_ROOT) not in sys.path:
 
 from src.inference_pipeline import NutriSenseInferenceEngine, ALLERGEN_MAP
 from src.nutrient_scoring_engine import compute_suitability_score, ICMR_RDA_PROFILES
-from src.label_scanner import scan_label
+from src.label_scanner import scan_label, scan_multiple_labels, _NUTRIENT_PATTERNS
+from src.ingredient_intelligence import (
+    get_ingredient_analyzer,
+    lookup_packaged_product,
+    POPULAR_PACKAGED_FOODS,
+)
 from src.nutrition_analyzer import (
     get_analyzer,
     calculate_nutrients,
@@ -534,35 +539,128 @@ def analyze_nutrition_item():
 @app.route("/api/scan-label", methods=["POST"])
 def scan_packaged_label():
     """
-    Accepts a product packaging photo via multipart file upload or base64 JSON.
-    Runs EasyOCR and structured parsing, returning all extracted fields.
+    Accepts single or multiple product packaging photos via multipart file upload,
+    base64 JSON, or manual product name / ingredient text query.
+    Extracts OCR text, structured nutrition facts, allergens, and runs Smart Ingredient Intelligence.
     Missing fields are reported as null — never invented or zero-filled.
     """
     try:
-        pil_image = None
+        pil_images = []
+        user_profile_data = None
 
-        if "file" in request.files:
-            f = request.files["file"]
-            if f and f.filename:
-                pil_image = Image.open(f.stream).convert("RGB")
+        # Check for profile parameter
+        profile_key = request.form.get("user_profile") or "adult_male_sedentary"
+        user_id = request.form.get("user_id")
+        if user_id:
+            try:
+                user_profile_data = get_profile(user_id)
+            except Exception:
+                pass
 
-        if pil_image is None and request.is_json:
-            json_data = request.get_json() or {}
-            if "image_base64" in json_data:
-                import base64, io as _io
+        # 1. Multipart files (supports multiple 'files' or 'file')
+        if "files" in request.files:
+            file_list = request.files.getlist("files")
+            for f in file_list:
+                if f and f.filename:
+                    pil_images.append(Image.open(f.stream).convert("RGB"))
+        if not pil_images and "file" in request.files:
+            file_list = request.files.getlist("file")
+            for f in file_list:
+                if f and f.filename:
+                    pil_images.append(Image.open(f.stream).convert("RGB"))
+
+        # 2. JSON Base64 or Text Fallbacks
+        if not pil_images and request.is_json:
+            json_data = request.get_json(silent=True) or {}
+            profile_key = json_data.get("user_profile") or profile_key
+            if json_data.get("user_id") and not user_profile_data:
+                try:
+                    user_profile_data = get_profile(json_data["user_id"])
+                except Exception:
+                    pass
+
+            # Check for direct product name search fallback
+            prod_query = json_data.get("product_name") or json_data.get("query")
+            if prod_query:
+                catalog_match = lookup_packaged_product(prod_query, user_profile=user_profile_data)
+                if catalog_match:
+                    return jsonify({"success": True, "data": catalog_match})
+
+            # Check for direct ingredients text fallback
+            raw_ing_text = json_data.get("ingredients_text")
+            if raw_ing_text:
+                analyzer = get_ingredient_analyzer()
+                ing_intel = analyzer.analyze(raw_ing_text, user_profile=user_profile_data)
+                empty_nut = {k: None for k in _NUTRIENT_PATTERNS}
+                empty_nut["dietary_fiber"] = None
+                return jsonify({
+                    "success": True,
+                    "data": {
+                        "ocr_text": raw_ing_text,
+                        "readability": {"mean_confidence": 1.0, "quality": "GOOD", "readable_bbox_count": 20},
+                        "product": {"product_name": json_data.get("product_name") or "Packaged Food Product", "brand": None, "ocr_extracted": False},
+                        "serving": {"serving_size": None, "serving_unit": None, "nutrition_basis": "Declared Values", "servings_per_container": None},
+                        "nutrition": empty_nut,
+                        "ingredients": raw_ing_text,
+                        "allergens": {"declared": None, "detected_from_ingredients": None, "may_contain": None, "all_identified_allergens": None},
+                        "missing_fields": [],
+                        "extraction_note": "Ingredients analyzed directly via manual entry.",
+                        "disclaimer": (
+                            "Nutrition and ingredient analysis is based on manually entered product information for dietary awareness. "
+                            "Not clinical medical advice."
+                        ),
+                        "ingredient_intelligence": ing_intel,
+                        "extracted_data": {"ingredients": raw_ing_text}
+                    }
+                })
+
+            if "images_base64" in json_data and isinstance(json_data["images_base64"], list):
+                import base64 as _b64, io as _io
+                for b64 in json_data["images_base64"]:
+                    if "," in b64:
+                        b64 = b64.split(",")[1]
+                    pil_images.append(Image.open(_io.BytesIO(_b64.b64decode(b64))).convert("RGB"))
+            elif "image_base64" in json_data:
+                import base64 as _b64, io as _io
                 b64 = json_data["image_base64"]
                 if "," in b64:
                     b64 = b64.split(",")[1]
-                pil_image = Image.open(_io.BytesIO(base64.b64decode(b64))).convert("RGB")
+                pil_images.append(Image.open(_io.BytesIO(_b64.b64decode(b64))).convert("RGB"))
 
-        if pil_image is None:
+        # Check for form-based product name query fallback
+        if not pil_images:
+            form_query = request.form.get("product_name") or request.form.get("query")
+            if form_query:
+                catalog_match = lookup_packaged_product(form_query, user_profile=user_profile_data)
+                if catalog_match:
+                    return jsonify({"success": True, "data": catalog_match})
+
+        if not pil_images:
             return jsonify({"success": False, "error": "No image provided (use 'file' multipart or 'image_base64' JSON)."}), 400
 
-        result = scan_label(pil_image)
+        if len(pil_images) == 1:
+            result = scan_label(pil_images[0], user_profile=user_profile_data)
+        else:
+            result = scan_multiple_labels(pil_images, user_profile=user_profile_data)
+
         return jsonify({"success": True, "data": result})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/packaged-products/search", methods=["GET"])
+def api_search_packaged_products():
+    """GET /api/packaged-products/search?q=... — Lookup popular packaged products in catalog."""
+    q = request.args.get("q", "").strip()
+    if not q:
+        summary = [{"name": p["product_name"], "brand": p["brand"], "category": p["category"]} for p in POPULAR_PACKAGED_FOODS]
+        return jsonify({"success": True, "data": summary, "count": len(summary)})
+
+    match = lookup_packaged_product(q)
+    if match:
+        return jsonify({"success": True, "found": True, "data": match})
+    return jsonify({"success": True, "found": False, "data": None, "message": "Product not found in quick catalog. Upload label photos or paste ingredients for full analysis."})
 
 
 @app.route("/api/confirm-label", methods=["POST"])

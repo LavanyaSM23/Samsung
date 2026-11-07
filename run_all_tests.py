@@ -38,6 +38,7 @@ TEST_SUITES = [
     ("Phase 12: System Integration", "tests/test_system_integration.py"),
     ("Phase 13: Testing & Validation Scorecard", "tests/test_phase13_comprehensive_validation.py"),
     ("Packaged Food Label Scanner Module", "tests/test_label_scanner.py"),
+    ("Smart Ingredient Intelligence & Packaged Food Suite", "tests/test_ingredient_intelligence.py"),
     ("Phase 8 UX & Personalization Suite", "tests/test_phase8_ux_personalization.py"),
 ]
 

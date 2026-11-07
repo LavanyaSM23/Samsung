@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/styles.css">
   <link rel="stylesheet" href="/static/css/profile-styles.css">
+  <link rel="stylesheet" href="/static/css/label-scanner.css">
 </head>
 <body>
   <!-- Header Bar -->
@@ -615,156 +616,219 @@
     <section class="view-section" id="labelScannerView">
       <div class="hero-header">
         <h2 class="hero-title">Packaged Food <span class="gradient-text">Label Scanner</span></h2>
-        <p class="hero-subtitle">Upload a single photo of a packaged food product. OCR reads the visible nutrition facts, ingredients and allergen information directly from the label. Missing or unreadable fields are always shown as unavailable &mdash; never invented.</p>
+        <p class="hero-subtitle">Scan any packaged food to uncover its ingredients, understand its nutritional value, identify potential concerns, and discover healthier alternatives that fit your lifestyle and budget.</p>
       </div>
 
       <div class="label-scanner-grid">
-        <!-- Left: Upload Panel -->
+        <!-- Left: Upload & Input Panel -->
         <div class="scanner-card label-upload-panel" id="labelUploadPanel">
-          <div class="panel-header">
-            <h3 class="panel-title">1. Upload Product Photo</h3>
-            <span class="badge" style="background: rgba(139,92,246,0.15); color: var(--accent-purple); border: 1px solid rgba(139,92,246,0.3)">EasyOCR Active</span>
+          <!-- Input Mode Switcher -->
+          <div class="label-mode-tabs">
+            <button type="button" class="label-mode-tab active" id="modeTabPhotos">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Upload Package Photos
+            </button>
+            <button type="button" class="label-mode-tab" id="modeTabManual">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Product Search / Text
+            </button>
           </div>
-          <div class="dropzone label-dropzone" id="labelDropzone">
-            <input type="file" id="labelFileInput" accept="image/jpeg,image/png,image/webp" class="file-input-hidden">
-            <div class="dropzone-content" id="labelDropzonePrompt">
-              <div class="dropzone-icon" style="color: var(--accent-purple)">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                  <line x1="9" y1="3" x2="9" y2="21"/>
-                  <path d="M13 8h5M13 12h5M13 16h5M5 8h2M5 12h2M5 16h2"/>
+
+          <!-- Mode 1: Multi-Photo Upload Area -->
+          <div id="panelModePhotos">
+            <div class="label-guide-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <span><strong>Packaging Tip:</strong> If ingredients and nutrition facts are on different sides of the packet, upload photos of both sides! You can upload up to 4 photos.</span>
+            </div>
+
+            <div class="label-multi-dropzone" id="labelDropzone">
+              <input type="file" id="labelFileInput" accept="image/jpeg,image/png,image/webp" multiple class="file-input-hidden">
+              <div class="label-multi-dropzone-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
                 </svg>
               </div>
-              <h3 class="dropzone-title">Drop product photo here</h3>
-              <p class="dropzone-text">One photo &mdash; front, back, or nutrition panel (JPG, PNG, WEBP, max 16 MB)</p>
-              <button type="button" class="btn btn-primary" id="btnLabelBrowse" style="border-color: var(--accent-purple); background: rgba(139,92,246,0.15); color: var(--accent-purple)">Browse Files</button>
+              <h4 class="label-multi-dropzone-title">Drop product photos here</h4>
+              <p class="label-multi-dropzone-hint">Front of pack, Nutrition table, or Ingredients list (JPG, PNG, WEBP)</p>
+              <button type="button" class="btn-upload-photos" id="btnLabelBrowse">Browse Photos</button>
             </div>
-            <div class="preview-container hidden" id="labelPreviewContainer">
-              <img id="labelImagePreview" alt="Product photo preview" class="preview-img">
-              <div class="preview-overlay">
-                <button type="button" class="btn btn-sm btn-secondary" id="btnChangeLabelImage">Change Photo</button>
-              </div>
+
+            <!-- Uploaded Thumbnails Strip -->
+            <div class="label-thumbnails-strip hidden" id="labelThumbnailsStrip"></div>
+          </div>
+
+          <!-- Mode 2: Manual Product Lookup & Text Fallback -->
+          <div id="panelModeManual" class="hidden label-manual-panel">
+            <div class="label-quick-search-box">
+              <input type="text" id="manualProductSearchInput" class="label-quick-input" placeholder="Type packaged food name (e.g. Maggi, Good Day, Lay's)...">
             </div>
+
+            <div class="popular-products-title">Popular Indian Packaged Foods</div>
+            <div class="popular-products-pills">
+              <button type="button" class="popular-pill" data-query="Maggi 2-Minute Masala Noodles">Maggi Noodles</button>
+              <button type="button" class="popular-pill" data-query="Britannia Good Day Butter Cookies">Good Day Butter</button>
+              <button type="button" class="popular-pill" data-query="Parle-G Original Glucose Biscuits">Parle-G</button>
+              <button type="button" class="popular-pill" data-query="Lay's Classic Salted Potato Chips">Lay's Chips</button>
+              <button type="button" class="popular-pill" data-query="Kurkure Masala Munch">Kurkure</button>
+              <button type="button" class="popular-pill" data-query="Haldiram's Aloo Bhujia">Aloo Bhujia</button>
+              <button type="button" class="popular-pill" data-query="Oreo Original Chocolate Sandwich Cookies">Oreo Cookies</button>
+            </div>
+
+            <div class="popular-products-title" style="margin-top: 12px;">Or Paste Ingredients List</div>
+            <textarea id="manualIngredientsInput" class="label-raw-textarea" placeholder="Paste ingredients list from manufacturer or website..."></textarea>
           </div>
-          <div class="label-ocr-note">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            Separate from the fresh-food MobileNetV2 scanner. No model retraining performed.
-          </div>
+
+          <!-- Analyze Action Button -->
+          <button type="button" class="btn-analyze-pack" id="btnAnalyzePack">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            Analyze Packaged Food &rarr;
+          </button>
         </div>
 
-        <!-- Right: OCR Results Panel -->
+        <!-- Right: Results Panel -->
         <div class="scanner-card label-results-panel" id="labelResultsPanel">
+          <!-- Empty State -->
           <div class="empty-state" id="labelEmptyState">
             <div class="empty-icon" style="color: var(--accent-purple)">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <line x1="9" y1="3" x2="9" y2="21"/>
-                <path d="M13 8h5M13 12h5M13 16h5"/>
+                <path d="M7 8h10M7 12h10M7 16h6"/>
               </svg>
             </div>
-            <h3 class="empty-title">Awaiting Product Image</h3>
-            <p class="empty-text">Upload a product packaging photo to extract nutrition facts, ingredients, and allergen information via OCR.</p>
+            <h3 class="empty-title">Awaiting Product Scan</h3>
+            <p class="empty-text">Upload photos of the package or search by product name to decode hidden ingredients, check nutritional value, and discover healthier alternatives.</p>
           </div>
 
+          <!-- Loading State -->
           <div class="loading-state hidden" id="labelLoadingState">
             <div class="spinner" style="border-top-color: var(--accent-purple)"></div>
-            <h3 class="loading-title">Running OCR on product label...</h3>
-            <p class="loading-text">Extracting text, parsing nutrition facts, ingredients and allergens. This may take a few seconds.</p>
+            <h3 class="loading-title">Analyzing Packaged Food...</h3>
+            <p class="loading-text">Extracting declared ingredients, cross-checking INS additives, and evaluating health suitability.</p>
           </div>
 
+          <!-- Content Results (Shown when data is loaded) -->
           <div class="hidden" id="labelResultsContent">
-            <!-- Product Header -->
-            <div class="label-product-header" id="labelProductHeader">
+            <!-- Product Snapshot Header -->
+            <div class="label-product-banner" id="labelProductHeader">
               <div>
-                <span class="label-mini">Identified Product</span>
-                <h3 class="prediction-title" id="labelProductName">Unknown Product</h3>
-                <span class="label-mini" id="labelBrand" style="color: var(--text-secondary)"></span>
+                <span class="label-mini">Packaged Product Analysis</span>
+                <h3 class="prediction-title" id="labelProductName" style="margin-top: 2px;">Unknown Product</h3>
+                <div class="label-product-meta-row">
+                  <span class="label-brand-pill" id="labelBrand">Brand: Unspecified</span>
+                  <span id="labelNovaBadge" class="nova-badge nova-4">Ultra-Processed Food</span>
+                  <span class="label-mini" id="labelServingVal" style="color: var(--text-muted)"></span>
+                </div>
               </div>
               <div id="labelReadabilityBadge"></div>
             </div>
 
-            <!-- Extraction Note / Warning -->
-            <div id="labelExtractionNote" class="quality-warning-card hidden">
-              <div class="warning-icon">&#9888;</div>
-              <div class="warning-text" id="labelExtractionNoteText"></div>
+            <!-- Critical Insights & Hidden Ingredients Banner -->
+            <div class="label-insights-section" id="labelHiddenInsightsBanner">
+              <!-- Dynamically populated hidden sugar, fat, sodium & profile alert cards -->
             </div>
 
-            <!-- Serving Info -->
-            <div class="label-serving-row" id="labelServingRow">
-              <span class="label-mini">Serving / Basis</span>
-              <span class="label-serving-val" id="labelServingVal">Not available</span>
+            <!-- Sectional Intelligence Tabs -->
+            <div class="intel-tabs" id="labelIntelTabs">
+              <button type="button" class="intel-tab-btn active" id="tabBtnIngredients" data-tab="viewIngredientsTab">Smart Ingredients &amp; Additives</button>
+              <button type="button" class="intel-tab-btn" id="tabBtnNutrition" data-tab="viewNutritionTab">Declared Nutrition &amp; Suitability</button>
+              <button type="button" class="intel-tab-btn" id="tabBtnAlternatives" data-tab="viewAlternativesTab">Healthier Alternatives</button>
             </div>
 
-            <!-- Nutrition Table -->
-            <div class="label-nutrition-section">
-              <div class="label-section-header">
-                <h4 class="subpanel-title">Nutrition Information</h4>
-                <span class="label-mini" id="labelNutritionBasis" style="color: var(--accent-cyan)"></span>
+            <!-- Tab 1: Smart Ingredients Explorer -->
+            <div class="intel-tab-view" id="viewIngredientsTab">
+              <div id="labelIngredientsContainer">
+                <!-- Grouped ingredient cards (Primary, Sweeteners, Fats, Preservatives, Colours) -->
               </div>
-              <table class="label-nutrition-table" id="labelNutritionTable">
-                <thead>
-                  <tr>
-                    <th>Nutrient</th>
-                    <th>Value (as declared)</th>
-                    <th>Unit</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody id="labelNutritionBody">
-                </tbody>
-              </table>
-            </div>
 
-            <!-- User Corrections Note -->
-            <div class="label-correction-note">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Review the extracted values above. Click any value to correct it before confirming.
-            </div>
-
-            <!-- Ingredients -->
-            <div class="label-sub-section" id="labelIngredientsSection">
-              <h4 class="subpanel-title">Ingredients</h4>
-              <div class="label-ingredients-text" id="labelIngredientsTxt"></div>
-            </div>
-
-            <!-- Allergens -->
-            <div class="label-sub-section" id="labelAllergenSection">
-              <h4 class="subpanel-title">Allergen Information</h4>
-              <div id="labelAllergenContent"></div>
-            </div>
-
-            <!-- Missing Fields -->
-            <div class="label-sub-section" id="labelMissingSection">
-              <h4 class="subpanel-title" style="color: var(--accent-amber)">Fields Not Extracted</h4>
-              <div id="labelMissingList"></div>
-            </div>
-
-            <!-- Confirm & Score Button -->
-            <div class="label-confirm-row">
-              <button type="button" class="btn btn-primary" id="btnConfirmLabel" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); border: none">
-                Confirm &amp; Evaluate Nutrition Suitability
-              </button>
-            </div>
-
-            <!-- Health Evaluation Result (shown after confirm) -->
-            <div class="suitability-card hidden" id="labelHealthCard">
-              <div class="suitability-score-box">
-                <div class="score-circle" id="labelScoreCircle">
-                  <span class="score-number" id="labelScoreNum">--</span>
-                  <span class="score-max">/10</span>
-                </div>
-                <div class="score-details">
-                  <span class="label-mini">Packaged Product Suitability</span>
-                  <h3 class="verdict-title" id="labelVerdictText">--</h3>
-                  <span class="score-subtext" id="labelScoreProfile"></span>
-                </div>
+              <!-- Allergens Section -->
+              <div class="label-sub-section" id="labelAllergenSection" style="margin-top: 18px;">
+                <h4 class="subpanel-title" style="font-size: 0.8rem; text-transform: uppercase;">Allergen Information</h4>
+                <div id="labelAllergenContent"></div>
               </div>
-              <div class="alerts-container" id="labelAlertsContainer"></div>
-              <p class="label-health-disclaimer" id="labelHealthDisclaimer"></p>
             </div>
 
-            <!-- OCR Disclaimer -->
-            <div class="label-ocr-disclaimer" id="labelOcrDisclaimer"></div>
+            <!-- Tab 2: Declared Nutrition & Health Suitability -->
+            <div class="intel-tab-view hidden" id="viewNutritionTab">
+              <div class="label-nutrition-section">
+                <div class="label-section-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                  <h4 class="subpanel-title">Declared Nutrition Facts</h4>
+                  <span class="label-mini" id="labelNutritionBasis" style="color: var(--accent-purple); font-weight:700;"></span>
+                </div>
+
+                <!-- Only Declared/Extracted Rows -->
+                <table class="clean-nutrition-table" id="labelNutritionTable">
+                  <thead>
+                    <tr>
+                      <th>Nutrient</th>
+                      <th>Declared Value</th>
+                      <th>Unit</th>
+                      <th>Confidence / Edit</th>
+                    </tr>
+                  </thead>
+                  <tbody id="labelNutritionBody">
+                    <!-- Clean non-empty rows populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- User Corrections Note -->
+              <div class="label-correction-note" style="margin-bottom: 14px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Values above reflect declared numbers from the package. You can edit any value before evaluating.
+              </div>
+
+              <!-- Confirm & Score Button -->
+              <div class="label-confirm-row">
+                <button type="button" class="btn btn-primary" id="btnConfirmLabel" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); border: none; padding: 10px 20px; font-weight: 700;">
+                  Confirm &amp; Evaluate Nutrition Suitability
+                </button>
+              </div>
+
+              <!-- Health Evaluation Card (Shown after confirm) -->
+              <div class="suitability-card hidden" id="labelHealthCard" style="margin-top: 16px;">
+                <div class="suitability-score-box">
+                  <div class="score-circle" id="labelScoreCircle">
+                    <span class="score-number" id="labelScoreNum">--</span>
+                    <span class="score-max">/10</span>
+                  </div>
+                  <div class="score-details">
+                    <span class="label-mini">ICMR-NIN 2020 RDA Health Suitability</span>
+                    <h3 class="verdict-title" id="labelVerdictText">--</h3>
+                    <span class="score-subtext" id="labelScoreProfile"></span>
+                  </div>
+                </div>
+                <div class="alerts-container" id="labelAlertsContainer"></div>
+                <p class="label-health-disclaimer" id="labelHealthDisclaimer"></p>
+              </div>
+
+              <!-- Wholesome Product Benefits -->
+              <div class="benefits-container" id="labelBenefitsContainer">
+                <div class="benefits-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Verified Product Highlights &amp; Positives
+                </div>
+                <ul class="benefits-list" id="labelBenefitsList">
+                  <!-- Dynamically populated positive findings -->
+                </ul>
+              </div>
+            </div>
+
+            <!-- Tab 3: Healthier & Affordable Alternatives -->
+            <div class="intel-tab-view hidden" id="viewAlternativesTab">
+              <div class="subpanel-title" style="margin-bottom: 4px;">Healthier Alternatives Tailored to Your Profile</div>
+              <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 12px;">Culturally authentic Indian foods that provide similar satisfaction with reduced palm oil, lower sodium, and wholesome whole grains.</p>
+              <div class="alternatives-container" id="labelAlternativesContainer">
+                <!-- Dynamically populated alternative cards -->
+              </div>
+            </div>
+
+            <!-- Collapsible Technical OCR Accordion (Kept unobtrusive) -->
+            <details class="label-technical-accordion" id="labelTechnicalDetails">
+              <summary>Technical OCR Details &amp; Raw Text (Optional)</summary>
+              <div class="raw-ocr-box" id="labelRawOcrBox"></div>
+              <div class="label-ocr-disclaimer" id="labelOcrDisclaimer" style="margin-top: 8px;"></div>
+            </details>
           </div>
         </div>
       </div>

@@ -1798,49 +1798,116 @@ elif selected_section == "📊 Nutrition Dashboard":
 # SECTION 7 — PACKAGED FOOD SCANNER
 # ===========================================================================
 elif selected_section == "🏷️ Packaged Food Scanner":
-    st.title("🏷️ Label Scanner")
+    st.title("🏷️ Packaged Food Label Scanner")
     st.markdown(
-        "Upload a single image of a packaged food product (front and nutrition facts label) "
-        "to extract nutritional information, evaluate against ICMR-NIN 2020 RDA benchmarks, "
-        "and edit fields before logging."
+        "Scan any packaged food to uncover its ingredients, understand its nutritional value, "
+        "identify potential concerns, and discover healthier alternatives that fit your lifestyle and budget."
     )
 
     sc_col1, sc_col2 = st.columns([1.1, 1.3])
 
     with sc_col1:
-        st.subheader("1. Product Image & Upload")
-        pkg_img_file = st.file_uploader(
-            "Upload Packaged Product Photo (with Nutrition Table)",
-            type=["jpg", "jpeg", "png"],
-            key="pkg_uploader",
-            help="Take a clear, well-lit photo showing both product front and nutrition facts table.",
-        )
+        st.subheader("1. Product Photos & Input")
+
+        input_method = st.radio("Choose Input Mode", ["📷 Upload Product Photos", "🔍 Quick Product Search / Paste"], horizontal=True)
 
         pkg_image = None
-        if pkg_img_file is not None:
-            pkg_image = Image.open(pkg_img_file).convert("RGB")
-            st.image(pkg_image, caption="Uploaded Product Photo", use_container_width=True)
+        if input_method == "📷 Upload Product Photos":
+            pkg_img_files = st.file_uploader(
+                "Upload Product Photos (Front, Ingredients, or Nutrition Table)",
+                type=["jpg", "jpeg", "png", "webp"],
+                accept_multiple_files=True,
+                key="pkg_uploader",
+                help="Tip: If ingredients and nutrition facts are on different sides of the packet, upload photos of both sides!",
+            )
+
+            if pkg_img_files:
+                st.caption(f"📸 {len(pkg_img_files)} photo(s) selected.")
+                st.image(pkg_img_files[0], caption="Product Photo Preview", use_container_width=True)
+                pkg_image = Image.open(pkg_img_files[0]).convert("RGB")
+
+            run_ocr = st.button("🔍 Analyze Packaged Food", type="primary", use_container_width=True)
+
+            if "pkg_extracted_data" not in st.session_state:
+                st.session_state["pkg_extracted_data"] = {}
+            if "pkg_intel_data" not in st.session_state:
+                st.session_state["pkg_intel_data"] = {}
+
+            if run_ocr and pkg_img_files:
+                with st.spinner("Scanning label photos, decoding additives, and evaluating ingredients…"):
+                    try:
+                        from src.label_scanner import scan_label, scan_multiple_labels
+                        imgs = [Image.open(f).convert("RGB") for f in pkg_img_files]
+                        if len(imgs) == 1:
+                            scan_res = scan_label(imgs[0], user_profile=active_user)
+                        else:
+                            scan_res = scan_multiple_labels(imgs, user_profile=active_user)
+
+                        st.session_state["pkg_extracted_data"] = scan_res.get("extracted_data", {})
+                        st.session_state["pkg_intel_data"] = scan_res.get("ingredient_intelligence", {})
+                        st.success("✅ Product analyzed! Review findings and smart ingredient breakdown to the right.")
+                    except Exception as ex:
+                        st.warning(f"Scan note: {ex}. Please review/edit fields manually on the right.")
+
         else:
-            st.info("💡 **Tip**: You can also manually review or enter nutrition facts below even without an image.")
+            st.markdown("#### Quick Packaged Food Search")
+            quick_q = st.selectbox(
+                "Popular Indian Packaged Goods",
+                [
+                    "Select a product…",
+                    "Maggi 2-Minute Masala Noodles",
+                    "Britannia Good Day Butter Cookies",
+                    "Parle-G Original Glucose Biscuits",
+                    "Lay's Classic Salted Potato Chips",
+                    "Kurkure Masala Munch",
+                    "Haldiram's Aloo Bhujia",
+                    "Oreo Original Chocolate Sandwich Cookies"
+                ]
+            )
+            raw_ing_paste = st.text_area("Or Paste Ingredients List", placeholder="Paste ingredients list here…")
 
-        st.markdown("#### OCR Extraction Engine")
-        st.caption("Engine: `EasyOCR` with structured regex parser (`src/label_scanner.py`).")
-        run_ocr = st.button("🔍 Extract Nutrition Table with OCR", type="secondary", use_container_width=True)
-
-        if "pkg_extracted_data" not in st.session_state:
-            st.session_state["pkg_extracted_data"] = {}
-
-        if run_ocr and pkg_image is not None:
-            with st.spinner("Scanning label text and parsing nutrition facts table…"):
-                try:
-                    from src.label_scanner import scan_label
-                    scan_res = scan_label(pkg_image)
-                    st.session_state["pkg_extracted_data"] = scan_res.get("extracted_data", {})
-                    st.success("✅ Label scanned! Review and edit values to the right.")
-                except Exception as ex:
-                    st.warning(f"OCR note: {ex}. Please review/edit fields manually on the right.")
+            run_manual = st.button("🔍 Analyze Selected / Pasted Product", type="primary", use_container_width=True)
+            if run_manual:
+                with st.spinner("Analyzing product ingredients…"):
+                    from src.ingredient_intelligence import lookup_packaged_product, get_ingredient_analyzer
+                    if quick_q and quick_q != "Select a product…":
+                        matched = lookup_packaged_product(quick_q, user_profile=active_user)
+                        if matched:
+                            st.session_state["pkg_extracted_data"] = {
+                                "product_name": matched["product"]["product_name"],
+                                "brand": matched["product"]["brand"],
+                                "serving_size": matched["serving"]["serving_size"],
+                                "calories": matched["nutrition"]["calories"]["value"],
+                                "protein": matched["nutrition"]["protein"]["value"],
+                                "total_carbohydrates": matched["nutrition"]["total_carbohydrates"]["value"],
+                                "total_fat": matched["nutrition"]["total_fat"]["value"],
+                                "dietary_fibre": matched["nutrition"]["dietary_fibre"]["value"] if matched["nutrition"].get("dietary_fibre") else 1.5,
+                                "sodium": matched["nutrition"]["sodium"]["value"] if matched["nutrition"].get("sodium") else 200,
+                                "added_sugars": matched["nutrition"]["added_sugars"]["value"] if matched["nutrition"].get("added_sugars") else 0,
+                                "ingredients": matched["ingredients"]
+                            }
+                            st.session_state["pkg_intel_data"] = matched.get("ingredient_intelligence", {})
+                            st.success(f"✅ Loaded verified data for {quick_q}!")
+                    elif raw_ing_paste:
+                        analyzer = get_ingredient_analyzer()
+                        intel_res = analyzer.analyze(raw_ing_paste, user_profile=active_user)
+                        st.session_state["pkg_extracted_data"] = {"product_name": "Custom Product", "ingredients": raw_ing_paste}
+                        st.session_state["pkg_intel_data"] = intel_res
+                        st.success("✅ Ingredient list parsed!")
 
         extracted_data = st.session_state.get("pkg_extracted_data", {})
+        intel_data = st.session_state.get("pkg_intel_data", {})
+
+        # Display Processing Grade if available
+        if intel_data and "processing_grade" in intel_data:
+            grade = intel_data["processing_grade"]
+            st.markdown(f"""
+            <div style="padding:12px; border-radius:8px; background:rgba(0,0,0,0.03); border-left:4px solid {grade.get('color', '#94A3B8')}; margin-top:14px;">
+                <div style="font-size:0.75rem; font-weight:700; color:{grade.get('color', '#94A3B8')};">NOVA FOOD PROCESSING GRADE</div>
+                <div style="font-size:1.05rem; font-weight:700;">{grade.get('classification')}</div>
+                <div style="font-size:0.78rem; color:#64748B;">{grade.get('description')}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
     with sc_col2:
         st.subheader("2. Extracted Nutrition Facts & Verification")
@@ -1917,6 +1984,32 @@ elif selected_section == "🏷️ Packaged Food Scanner":
             st.warning("⚠️ **High Added Sugar**: Contains >10g added sugar per serving. ICMR advises limiting free sugars.")
         if p_sod > 400.0:
             st.warning("⚠️ **High Sodium Caution**: Exceeds 400 mg sodium per serving. Monitor blood pressure impact.")
+
+        # Smart Ingredient Intelligence breakdown (if available)
+        if intel_data:
+            with st.expander("🧪 Smart Ingredient Intelligence & Additives", expanded=True):
+                hidden_ins = intel_data.get("hidden_insights", [])
+                for hi in hidden_ins:
+                    st.info(f"**{hi.get('title')}**: {hi.get('description')}")
+
+                prof_alerts = intel_data.get("profile_alerts", [])
+                for pa in prof_alerts:
+                    st.warning(f"**{pa.get('profile')}**: {pa.get('message')}")
+
+                categorized = intel_data.get("categorized_ingredients", {})
+                for c_name, c_list in categorized.items():
+                    if c_list:
+                        st.markdown(f"**{c_name}** ({len(c_list)})")
+                        for ing_item in c_list:
+                            st.caption(f"• **{ing_item.get('clean_name', ing_item.get('name'))}** — {ing_item.get('purpose', '')} *({ing_item.get('health_relevance', '')})*")
+
+            # Healthier Alternatives
+            alts = intel_data.get("healthier_alternatives", [])
+            if alts:
+                with st.expander("🥗 Affordable Healthier Alternatives", expanded=False):
+                    for alt in alts:
+                        st.markdown(f"**{alt.get('name')}** `{alt.get('price_tier')}` | `{alt.get('calories')}`")
+                        st.caption(f"{alt.get('why_better')}")
 
         # Log to user meals
         if active_user:
