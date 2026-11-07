@@ -31,6 +31,12 @@ TEST_SUITES = [
     ("Phase 5: AI Model Training & Inference Engine", "tests/test_model_training_and_inference.py"),
     ("Phase 6: Web Application & REST APIs", "tests/test_web_application.py"),
     ("Phase 7: Nutrition Analysis Module", "tests/test_nutrition_analysis.py"),
+    ("Phase 8: Personalization & User Profiling", "tests/test_user_profiles.py"),
+    ("Phase 9: Recommendation System", "tests/test_recommendation_system.py"),
+    ("Phase 10: Backend & Database Integration", "tests/test_backend_database_integration.py"),
+    ("Phase 11: Frontend Streamlit Application", "tests/test_frontend_streamlit.py"),
+    ("Phase 12: System Integration", "tests/test_system_integration.py"),
+    ("Phase 13: Testing & Validation Scorecard", "tests/test_phase13_comprehensive_validation.py"),
     ("Packaged Food Label Scanner Module", "tests/test_label_scanner.py"),
 ]
 

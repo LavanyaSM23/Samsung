@@ -678,5 +678,683 @@ def confirm_packaged_label():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# =============================================================================
+# Phase 8: User Profile Management Endpoints
+# =============================================================================
+
+from src.user_profile_manager import (
+    validate_profile_data,
+    compute_bmi,
+    compute_daily_calorie_target,
+    map_to_rda_profile,
+    get_breakfast_suggestion,
+    personalize_portion_guidance,
+    get_food_suitability_for_profile,
+    create_profile,
+    get_profile,
+    update_profile,
+    delete_profile,
+    list_profiles,
+    profile_exists,
+)
+
+
+@app.route("/api/profile/create", methods=["POST"])
+def api_create_profile():
+    """POST /api/profile/create — create a new user profile."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        ok, errors = validate_profile_data(data)
+        if not ok:
+            return jsonify({"success": False, "errors": errors}), 400
+        profile = create_profile(data)
+        return jsonify({"success": True, "data": profile}), 201
+    except ValueError as exc:
+        errs = exc.args[0] if exc.args else [str(exc)]
+        return jsonify({"success": False, "errors": errs if isinstance(errs, list) else [errs]}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/profile/<user_id>", methods=["GET"])
+def api_get_profile(user_id):
+    """GET /api/profile/<user_id> — retrieve profile by ID."""
+    try:
+        profile = get_profile(user_id)
+        if profile is None:
+            return jsonify({"success": False, "error": "Profile not found."}), 404
+        return jsonify({"success": True, "data": profile})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/profile/<user_id>", methods=["PUT"])
+def api_update_profile(user_id):
+    """PUT /api/profile/<user_id> — update profile fields."""
+    try:
+        if not profile_exists(user_id):
+            return jsonify({"success": False, "error": "Profile not found."}), 404
+        updates = request.get_json(force=True, silent=True) or {}
+        updated = update_profile(user_id, updates)
+        if updated is None:
+            return jsonify({"success": False, "error": "Profile not found."}), 404
+        return jsonify({"success": True, "data": updated})
+    except ValueError as exc:
+        errs = exc.args[0] if exc.args else [str(exc)]
+        return jsonify({"success": False, "errors": errs if isinstance(errs, list) else [errs]}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/profile/<user_id>", methods=["DELETE"])
+def api_delete_profile(user_id):
+    """DELETE /api/profile/<user_id> — remove a profile."""
+    try:
+        deleted = delete_profile(user_id)
+        if not deleted:
+            return jsonify({"success": False, "error": "Profile not found."}), 404
+        return jsonify({"success": True, "data": {"deleted": user_id}})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/user-profiles", methods=["GET"])
+@app.route("/api/profiles", methods=["GET"])
+def api_list_profiles():
+    """GET /api/user-profiles — list all user profiles (id + display_name + created_at)."""
+    try:
+        profiles = list_profiles()
+        return jsonify({"success": True, "data": profiles, "count": len(profiles)})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/profile/<user_id>/bmi", methods=["POST"])
+def api_bmi(user_id):
+    """POST /api/profile/<user_id>/bmi — compute BMI for a profile."""
+    try:
+        profile = get_profile(user_id)
+        if profile is None:
+            return jsonify({"success": False, "error": "Profile not found."}), 404
+        bmi_data = compute_bmi(profile.get("height_cm"), profile.get("weight_kg"))
+        return jsonify({"success": True, "data": bmi_data})
+    except ValueError as exc:
+        return jsonify({"success": False, "errors": [str(exc)]}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/profile/<user_id>/breakfast", methods=["GET"])
+def api_breakfast(user_id):
+    """GET /api/profile/<user_id>/breakfast — morning routine breakfast suggestion."""
+    try:
+        profile = get_profile(user_id)
+        if profile is None:
+            return jsonify({"success": False, "error": "Profile not found."}), 404
+        suggestions = get_breakfast_suggestion(profile)
+        return jsonify({"success": True, "data": suggestions})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/profile/<user_id>/personalize", methods=["POST"])
+def api_personalize(user_id):
+    """POST /api/profile/<user_id>/personalize — personalize nutrition analysis."""
+    try:
+        profile = get_profile(user_id)
+        if profile is None:
+            return jsonify({"success": False, "error": "Profile not found."}), 404
+        body = request.get_json(force=True, silent=True) or {}
+        food_name = body.get("food_name", "")
+        if not food_name:
+            return jsonify({"success": False, "errors": ["food_name is required."]}), 400
+        portion_guidance = personalize_portion_guidance(food_name, profile)
+        suitability = get_food_suitability_for_profile(food_name, profile)
+        calorie_target = None
+        if all(profile.get(k) for k in ("age", "gender", "height_cm", "weight_kg", "activity_level", "dietary_goal")):
+            try:
+                calorie_target = compute_daily_calorie_target(
+                    profile["age"], profile["gender"],
+                    profile["height_cm"], profile["weight_kg"],
+                    profile["activity_level"], profile["dietary_goal"],
+                )
+            except Exception:
+                calorie_target = None
+        return jsonify({
+            "success": True,
+            "data": {
+                "food_name": food_name,
+                "portion_guidance": portion_guidance,
+                "food_suitability": suitability,
+                "daily_calorie_target": calorie_target,
+                "rda_profile_key": map_to_rda_profile(profile),
+            }
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+# =============================================================================
+# Phase 9: Recommendation System Endpoints
+# =============================================================================
+
+from src.recommendation_engine import (
+    get_recommendation_system,
+    SafetyFilterEngine,
+    SuitabilityScorer,
+    AlternativeFoodsEngine,
+    IngredientSubstitutionEngine,
+    RECOMMENDATION_DISCLAIMER,
+    SAFETY_OVERRIDE_NOTICE,
+)
+
+_rec_system = None
+
+def _get_rec_engine():
+    global _rec_system
+    if _rec_system is None:
+        _rec_system = get_recommendation_system()
+    return _rec_system
+
+
+def _resolve_profile(body: dict):
+    """Helper to resolve profile from user_id or embedded user_profile dict."""
+    user_id = body.get("user_id")
+    if user_id:
+        p = get_profile(user_id)
+        if p is None:
+            return None, "Profile not found for given user_id."
+        return p, None
+    profile = body.get("user_profile")
+    if isinstance(profile, dict):
+        return profile, None
+    return {}, None
+
+
+@app.route("/api/recommendations/recipes", methods=["POST"])
+def api_recommend_recipes():
+    """
+    POST /api/recommendations/recipes — Safe, personalized, ranked recipe recommendations.
+    Body options:
+      - user_id: string (optional)
+      - user_profile: dict (optional)
+      - course: string (optional, e.g. "breakfast", "lunch", "snack", "dinner")
+      - top_n: int (optional, default 10)
+      - query_hint: string (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        profile, err = _resolve_profile(body)
+        if err:
+            return jsonify({"success": False, "error": err}), 404
+
+        course = body.get("course")
+        top_n = int(body.get("top_n", 10))
+        query_hint = body.get("query_hint")
+
+        engine = _get_rec_engine()
+        results = engine.recommend_recipes(profile, course=course, top_n=top_n, query_hint=query_hint)
+        return jsonify({
+            "success": True,
+            "count": len(results),
+            "data": results,
+            "disclaimer": RECOMMENDATION_DISCLAIMER,
+            "safety_notice": SAFETY_OVERRIDE_NOTICE,
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/recommendations/alternatives", methods=["POST"])
+def api_recommend_alternatives():
+    """
+    POST /api/recommendations/alternatives — Healthier alternatives for a given food.
+    Body:
+      - food_name: string (required)
+      - user_id: string (optional)
+      - user_profile: dict (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        food_name = body.get("food_name", "").strip()
+        if not food_name:
+            return jsonify({"success": False, "errors": ["food_name is required."]}), 400
+
+        profile, err = _resolve_profile(body)
+        if err:
+            return jsonify({"success": False, "error": err}), 404
+
+        engine = _get_rec_engine()
+        alts = engine.alternatives_engine.get_alternatives(food_name, user_profile=profile)
+        return jsonify({
+            "success": True,
+            "food_name": food_name,
+            "count": len(alts),
+            "data": alts,
+            "disclaimer": RECOMMENDATION_DISCLAIMER,
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/recommendations/substitutions", methods=["POST"])
+def api_recommend_substitutions():
+    """
+    POST /api/recommendations/substitutions — Culinary substitutions for ingredients or recipes.
+    Body can contain either:
+      - ingredient: string (optional)
+      - reason: string (optional)
+      OR
+      - recipe: dict (optional)
+      - user_profile / user_id: (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        engine = _get_rec_engine()
+
+        ingredient = body.get("ingredient")
+        if ingredient:
+            reason = body.get("reason")
+            subs = engine.substitution_engine.get_substitutions_for_ingredient(ingredient, reason_or_allergy=reason)
+            return jsonify({
+                "success": True,
+                "ingredient": ingredient,
+                "data": subs,
+                "disclaimer": RECOMMENDATION_DISCLAIMER,
+            })
+
+        recipe = body.get("recipe")
+        if recipe and isinstance(recipe, dict):
+            profile, err = _resolve_profile(body)
+            if err:
+                return jsonify({"success": False, "error": err}), 404
+            swaps = engine.substitution_engine.suggest_recipe_substitutions(recipe, profile)
+            return jsonify({
+                "success": True,
+                "data": swaps,
+                "disclaimer": RECOMMENDATION_DISCLAIMER,
+            })
+
+        return jsonify({"success": False, "errors": ["Either 'ingredient' or 'recipe' must be provided."]}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/recommendations/score-recipe", methods=["POST"])
+def api_score_recipe():
+    """
+    POST /api/recommendations/score-recipe — Transparent 0-100 score for a specific recipe.
+    Body:
+      - recipe: dict (required)
+      - user_id: string (optional)
+      - user_profile: dict (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        recipe = body.get("recipe")
+        if not recipe or not isinstance(recipe, dict):
+            return jsonify({"success": False, "errors": ["'recipe' object is required."]}), 400
+
+        profile, err = _resolve_profile(body)
+        if err:
+            return jsonify({"success": False, "error": err}), 404
+
+        engine = _get_rec_engine()
+        score_res = engine.scorer.score_recipe(recipe, profile)
+        return jsonify({
+            "success": True,
+            "data": score_res,
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/recommendations/daily-plan", methods=["POST"])
+def api_daily_plan():
+    """
+    POST /api/recommendations/daily-plan — Generate balanced 1-day meal plan.
+    Body:
+      - user_id: string (optional)
+      - user_profile: dict (optional)
+      - target_calories_kcal: float (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        profile, err = _resolve_profile(body)
+        if err:
+            return jsonify({"success": False, "error": err}), 404
+
+        target_cals = body.get("target_calories_kcal")
+        if target_cals is not None:
+            try:
+                target_cals = float(target_cals)
+            except (ValueError, TypeError):
+                target_cals = None
+
+        engine = _get_rec_engine()
+        plan = engine.generate_daily_meal_plan(profile, target_calories_kcal=target_cals)
+        return jsonify({
+            "success": True,
+            "data": plan,
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/recommendations/weekly-plan", methods=["POST"])
+def api_weekly_plan():
+    """
+    POST /api/recommendations/weekly-plan — Generate balanced 7-day meal plan + grocery list.
+    Body:
+      - user_id: string (optional)
+      - user_profile: dict (optional)
+      - target_calories_kcal: float (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        profile, err = _resolve_profile(body)
+        if err:
+            return jsonify({"success": False, "error": err}), 404
+
+        target_cals = body.get("target_calories_kcal")
+        if target_cals is not None:
+            try:
+                target_cals = float(target_cals)
+            except (ValueError, TypeError):
+                target_cals = None
+
+        engine = _get_rec_engine()
+        weekly = engine.generate_weekly_meal_plan(profile, target_calories_kcal=target_cals)
+        return jsonify({
+            "success": True,
+            "data": weekly,
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+# =============================================================================
+# Phase 10: Backend and Database Integration Endpoints
+# =============================================================================
+
+from src.database_manager import (
+    get_db_connection,
+    log_meal,
+    get_meal_history,
+    delete_meal_log,
+    get_daily_nutrition_totals,
+    get_period_nutrition_summary,
+    save_meal_plan,
+    get_latest_meal_plan,
+    log_user_feedback,
+    get_user_feedback,
+    get_backend_orchestrator,
+)
+
+
+@app.route("/api/meals/log", methods=["POST"])
+def api_log_meal():
+    """
+    POST /api/meals/log — Save a meal entry into SQLite.
+    Body:
+      - user_id: string (required)
+      - food_name: string (required)
+      - portion_grams: float (required)
+      - calories_kcal: float (required)
+      - protein_g, carbs_g, fat_g, fibre_g, sodium_mg: float (optional)
+      - course: string (optional, default 'lunch')
+      - meal_date: YYYY-MM-DD (optional, default today)
+      - notes: string (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        user_id = body.get("user_id", "").strip()
+        if not user_id:
+            return jsonify({"success": False, "errors": ["user_id is required."]}), 400
+
+        logged = log_meal(user_id, body)
+        return jsonify({"success": True, "data": logged}), 201
+    except ValueError as ve:
+        return jsonify({"success": False, "errors": [str(ve)]}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/meals/history", methods=["GET"])
+def api_meal_history():
+    """
+    GET /api/meals/history — Retrieve filtered meal history.
+    Query parameters:
+      - user_id: string (required)
+      - start_date, end_date: YYYY-MM-DD (optional)
+      - course: string (optional)
+      - limit: int (optional, default 50)
+    """
+    try:
+        user_id = request.args.get("user_id", "").strip()
+        if not user_id:
+            return jsonify({"success": False, "errors": ["user_id parameter is required."]}), 400
+
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+        course = request.args.get("course")
+        limit = int(request.args.get("limit", 50))
+
+        history = get_meal_history(user_id, start_date=start_date, end_date=end_date, course=course, limit=limit)
+        return jsonify({"success": True, "count": len(history), "data": history})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/meals/<log_id>", methods=["DELETE"])
+def api_delete_meal(log_id):
+    """
+    DELETE /api/meals/<log_id> — Delete a specific logged meal.
+    Query/Body parameter: user_id (required).
+    """
+    try:
+        user_id = request.args.get("user_id")
+        if not user_id:
+            body = request.get_json(force=True, silent=True) or {}
+            user_id = body.get("user_id")
+
+        if not user_id:
+            return jsonify({"success": False, "errors": ["user_id parameter is required to delete meal log."]}), 400
+
+        deleted = delete_meal_log(log_id, user_id)
+        if not deleted:
+            return jsonify({"success": False, "error": "Meal log not found or user unauthorized."}), 404
+
+        return jsonify({"success": True, "deleted": log_id})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/meals/daily-totals", methods=["GET"])
+def api_daily_totals():
+    """
+    GET /api/meals/daily-totals — Aggregated nutrient totals & target comparisons for a day.
+    Query parameters:
+      - user_id: string (required)
+      - date: YYYY-MM-DD (optional, default today)
+    """
+    try:
+        user_id = request.args.get("user_id", "").strip()
+        if not user_id:
+            return jsonify({"success": False, "errors": ["user_id parameter is required."]}), 400
+
+        target_date = request.args.get("date")
+        totals = get_daily_nutrition_totals(user_id, target_date=target_date)
+        return jsonify({"success": True, "data": totals})
+    except ValueError as ve:
+        return jsonify({"success": False, "errors": [str(ve)]}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/meals/summary", methods=["GET"])
+def api_nutrition_summary():
+    """
+    GET /api/meals/summary — Nutrition consumption averages and daily breakdown over N days.
+    Query parameters:
+      - user_id: string (required)
+      - days: int (optional, default 7)
+    """
+    try:
+        user_id = request.args.get("user_id", "").strip()
+        if not user_id:
+            return jsonify({"success": False, "errors": ["user_id parameter is required."]}), 400
+
+        days = int(request.args.get("days", 7))
+        summary = get_period_nutrition_summary(user_id, days=days)
+        return jsonify({"success": True, "data": summary})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/meal-plans/save", methods=["POST"])
+def api_save_meal_plan():
+    """
+    POST /api/meal-plans/save — Save a generated meal plan.
+    Body:
+      - user_id: string (required)
+      - plan_data: dict (required)
+      - plan_type: string ('daily' or 'weekly', default 'daily')
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        user_id = body.get("user_id", "").strip()
+        plan_data = body.get("plan_data")
+        if not user_id or not plan_data:
+            return jsonify({"success": False, "errors": ["user_id and plan_data are required."]}), 400
+
+        plan_type = str(body.get("plan_type", "daily"))
+        saved = save_meal_plan(user_id, plan_data, plan_type=plan_type)
+        return jsonify({"success": True, "data": saved}), 201
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/meal-plans/latest", methods=["GET"])
+def api_latest_meal_plan():
+    """
+    GET /api/meal-plans/latest — Fetch user's most recent meal plan.
+    Query parameters:
+      - user_id: string (required)
+      - plan_type: string ('daily' or 'weekly', optional)
+    """
+    try:
+        user_id = request.args.get("user_id", "").strip()
+        if not user_id:
+            return jsonify({"success": False, "errors": ["user_id parameter is required."]}), 400
+
+        plan_type = request.args.get("plan_type")
+        plan = get_latest_meal_plan(user_id, plan_type=plan_type)
+        if not plan:
+            return jsonify({"success": False, "error": "No meal plan found for given user."}), 404
+
+        return jsonify({"success": True, "data": plan})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/feedback/log", methods=["POST"])
+def api_log_feedback():
+    """
+    POST /api/feedback/log — Submit user rating and qualitative feedback.
+    Body:
+      - user_id: string (required)
+      - rating: int 1-5 (optional)
+      - item_id: string (optional)
+      - item_type: string ('recommendation', 'meal_plan', 'prediction', 'general')
+      - feedback_type: string (optional)
+      - comments: string (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        user_id = body.get("user_id", "").strip()
+        if not user_id:
+            return jsonify({"success": False, "errors": ["user_id is required."]}), 400
+
+        logged_fb = log_user_feedback(user_id, body)
+        return jsonify({"success": True, "data": logged_fb}), 201
+    except ValueError as ve:
+        return jsonify({"success": False, "errors": [str(ve)]}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/feedback", methods=["GET"])
+def api_get_feedback():
+    """
+    GET /api/feedback — Retrieve user feedback history.
+    Query parameters:
+      - user_id: string (required)
+      - limit: int (optional, default 20)
+    """
+    try:
+        user_id = request.args.get("user_id", "").strip()
+        if not user_id:
+            return jsonify({"success": False, "errors": ["user_id parameter is required."]}), 400
+
+        limit = int(request.args.get("limit", 20))
+        feedbacks = get_user_feedback(user_id, limit=limit)
+        return jsonify({"success": True, "count": len(feedbacks), "data": feedbacks})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/flow/process", methods=["POST"])
+def api_integrated_flow():
+    """
+    POST /api/flow/process — Integrated End-to-End Orchestrator.
+    Connects:
+      1. Food recognition & database lookup
+      2. Portion scaling & nutrition calculations
+      3. User profile allergy & restriction safety verification
+      4. Transparent 0-100 suitability scoring
+      5. Healthier alternative foods suggestions
+      6. Meal logging & updated daily totals (if save_to_log=True)
+    Body:
+      - food_name: string (required)
+      - portion_value: float (required)
+      - unit: string (optional, default 'g')
+      - user_id: string (optional)
+      - course: string (optional, default 'lunch')
+      - save_to_log: bool (optional, default False)
+      - notes: string (optional)
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        food_name = body.get("food_name", "").strip()
+        if not food_name:
+            return jsonify({"success": False, "errors": ["food_name is required."]}), 400
+
+        portion_val = body.get("portion_value", 100.0)
+        unit = str(body.get("unit", "g"))
+        user_id = body.get("user_id")
+        course = str(body.get("course", "lunch"))
+        save_to_log = bool(body.get("save_to_log", False))
+        notes = body.get("notes")
+
+        orchestrator = get_backend_orchestrator()
+        flow_result = orchestrator.process_food_recognition_and_logging(
+            food_name_or_prediction=food_name,
+            portion_value=portion_val,
+            unit=unit,
+            user_id=user_id,
+            course=course,
+            save_to_log=save_to_log,
+            notes=notes
+        )
+        return jsonify(flow_result)
+    except KeyError as ke:
+        return jsonify({"success": False, "error": str(ke)}), 404
+    except ValueError as ve:
+        return jsonify({"success": False, "errors": [str(ve)]}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)
