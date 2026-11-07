@@ -20,7 +20,7 @@ from pathlib import Path
 import sys
 import unittest
 
-WORKSPACE_ROOT = Path("c:/Samsung_Project")
+WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 

@@ -1896,10 +1896,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!pfHeight || !pfWeight) return;
     const h = parseFloat(pfHeight.value);
     const w = parseFloat(pfWeight.value);
-    if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+    if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0 || h < 50 || h > 280 || w < 10 || w > 300) {
       if (bmiPreviewCard) bmiPreviewCard.classList.add('hidden');
       return;
     }
+    // BMI
     const bmi = w / ((h / 100) ** 2);
     let cat = 'Normal weight';
     if (bmi < 18.5) cat = 'Underweight';
@@ -1910,31 +1911,55 @@ document.addEventListener('DOMContentLoaded', () => {
     if (bmiPreviewVal) bmiPreviewVal.textContent = bmi.toFixed(1);
     if (bmiPreviewCat) bmiPreviewCat.textContent = cat;
 
-    // Estimate TDEE (Mifflin-St Jeor + activity multiplier)
+    // Mifflin-St Jeor BMR + TDEE + goal-adjusted target
     const sex = pfSex ? pfSex.value : '';
     const age = parseFloat(pfAge ? pfAge.value : NaN);
-    if (!isNaN(age) && age > 0) {
+    const bmrPreviewValEl = document.getElementById('bmrPreviewVal');
+    const maintenancePreviewValEl = document.getElementById('maintenancePreviewVal');
+
+    if (!isNaN(age) && age >= 5 && age <= 120 && sex) {
       let bmr = 0;
       if (sex === 'male') bmr = 10 * w + 6.25 * h - 5 * age + 5;
       else if (sex === 'female') bmr = 10 * w + 6.25 * h - 5 * age - 161;
-      else bmr = 10 * w + 6.25 * h - 5 * age - 78;  // average
+      else bmr = (10 * w + 6.25 * h - 5 * age + 5 + 10 * w + 6.25 * h - 5 * age - 161) / 2; // avg
 
       const activityMap = {
         sedentary: 1.2, lightly_active: 1.375, moderately_active: 1.55, very_active: 1.725, extra_active: 1.9
       };
       const actKey = pfActivity ? pfActivity.value : 'sedentary';
       const mult = activityMap[actKey] || 1.2;
-      const tdee = Math.round(bmr * mult);
-      if (calPreviewVal) calPreviewVal.textContent = tdee.toLocaleString();
+      const maintenance = Math.round(bmr * mult);
+
+      // Goal adjustment
+      const goalAdjMap = {
+        weight_loss: -400,
+        weight_gain: 300,
+        muscle_gain: 250,
+        maintain_weight: 0,
+        general_wellness: 0,
+        improve_nutrition: 0,
+        manage_diabetes: 0,
+        manage_hypertension: 0
+      };
+      const goalKey = pfGoal ? pfGoal.value : 'maintain_weight';
+      const goalAdj = goalAdjMap[goalKey] !== undefined ? goalAdjMap[goalKey] : 0;
+      const target = maintenance + goalAdj;
+
+      if (bmrPreviewValEl) bmrPreviewValEl.textContent = Math.round(bmr).toLocaleString();
+      if (maintenancePreviewValEl) maintenancePreviewValEl.textContent = maintenance.toLocaleString();
+      if (calPreviewVal) calPreviewVal.textContent = target.toLocaleString();
     } else {
+      if (bmrPreviewValEl) bmrPreviewValEl.textContent = sex ? '--' : '(select sex first)';
+      if (maintenancePreviewValEl) maintenancePreviewValEl.textContent = '--';
       if (calPreviewVal) calPreviewVal.textContent = '--';
     }
 
     if (bmiPreviewCard) bmiPreviewCard.classList.remove('hidden');
   }
 
-  [pfHeight, pfWeight, pfAge, pfSex, pfActivity].forEach(el => {
+  [pfHeight, pfWeight, pfAge, pfSex, pfActivity, pfGoal].forEach(el => {
     if (el) el.addEventListener('input', computeBmiPreview);
+    if (el) el.addEventListener('change', computeBmiPreview);
   });
 
   const btnProceedToScanner = document.getElementById('btnProceedToScanner');
@@ -2039,12 +2064,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnSaveProfile) btnSaveProfile.textContent = 'Update Profile';
     if (pfName) pfName.value = profile.display_name || profile.name || '';
     if (pfAge) pfAge.value = profile.age || '';
-    if (pfSex) pfSex.value = profile.sex || '';
+    if (pfSex) pfSex.value = profile.sex || profile.gender || '';
     if (pfHeight) pfHeight.value = profile.height_cm || '';
     if (pfWeight) pfWeight.value = profile.weight_kg || '';
     if (pfActivity) pfActivity.value = profile.activity_level || 'sedentary';
     if (pfDiet) pfDiet.value = profile.dietary_preference || 'omnivore';
-    if (pfGoal) pfGoal.value = profile.nutrition_goal || 'maintenance';
+    // Map backend goal values to frontend select values
+    const backendToFrontendGoal = {
+      'maintain_weight': 'maintain_weight',
+      'maintenance': 'maintain_weight',
+      'general_wellness': 'general_wellness',
+      'general_health': 'general_wellness',
+    };
+    const profileGoal = profile.nutrition_goal || profile.dietary_goal || 'maintain_weight';
+    if (pfGoal) pfGoal.value = backendToFrontendGoal[profileGoal] || profileGoal;
     if (pfAllergies) pfAllergies.value = (profile.food_allergies || []).join(', ');
     if (pfRestrictions) pfRestrictions.value = (profile.food_restrictions || []).join(', ');
     if (pfBudget) pfBudget.value = profile.budget || 'medium';
@@ -2120,18 +2153,38 @@ document.addEventListener('DOMContentLoaded', () => {
       const allergiesRaw = pfAllergies ? pfAllergies.value.trim() : '';
       const restrictionsRaw = pfRestrictions ? pfRestrictions.value.trim() : '';
       const rawName = pfName ? pfName.value.trim() : '';
-      const finalName = rawName || 'Unnamed Profile';
 
+      // Validate mandatory name
+      if (!rawName) {
+        if (profileFormErrors) {
+          profileFormErrors.innerHTML = '<div class="profile-form-error-item">⚠ Name is required. Please enter a profile name.</div>';
+          profileFormErrors.classList.remove('hidden');
+        }
+        if (pfName) pfName.focus();
+        return;
+      }
+
+      const goalVal = pfGoal ? pfGoal.value : 'maintain_weight';
+      // Map frontend goal values to backend expected values
+      const goalMap = {
+        'maintenance': 'maintain_weight',
+        'general_health': 'general_wellness',
+      };
+      const backendGoal = goalMap[goalVal] || goalVal;
+
+      const sexVal = pfSex ? pfSex.value : '';
       const payload = {
-        name: finalName,
-        display_name: finalName,
+        name: rawName,
+        display_name: rawName,
+        gender: sexVal,
+        sex: sexVal,
         age: pfAge && pfAge.value ? parseInt(pfAge.value) : null,
-        sex: pfSex ? pfSex.value : '',
         height_cm: pfHeight && pfHeight.value ? parseFloat(pfHeight.value) : null,
         weight_kg: pfWeight && pfWeight.value ? parseFloat(pfWeight.value) : null,
         activity_level: pfActivity ? pfActivity.value : 'sedentary',
         dietary_preference: pfDiet ? pfDiet.value : 'omnivore',
-        nutrition_goal: pfGoal ? pfGoal.value : 'maintenance',
+        nutrition_goal: backendGoal,
+        dietary_goal: backendGoal,
         budget: pfBudget ? pfBudget.value : 'medium',
         food_allergies: allergiesRaw ? allergiesRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
         food_restrictions: restrictionsRaw ? restrictionsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],

@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 import pandas as pd
 
-WORKSPACE = Path("c:/Samsung_Project")
+WORKSPACE = Path(__file__).resolve().parent.parent
 REPORT_DIR = WORKSPACE / "reports"
 FIG_DIR = REPORT_DIR / "figures"
 PROC_DIR = WORKSPACE / "data" / "processed"

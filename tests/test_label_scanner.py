@@ -23,7 +23,7 @@ import unittest
 import numpy as np
 from PIL import Image, ImageDraw
 
-WORKSPACE_ROOT = Path("c:/Samsung_Project")
+WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 

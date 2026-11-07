@@ -97,8 +97,8 @@
 
             <div class="profile-form-row">
               <div class="profile-field">
-                <label class="profile-field-label" for="pfName">Name <span class="optional-label">(optional)</span></label>
-                <input type="text" id="pfName" class="profile-input" placeholder="e.g. Priya Sharma" autocomplete="name" maxlength="80">
+                <label class="profile-field-label" for="pfName">Name <span class="required-star">*</span></label>
+                <input type="text" id="pfName" class="profile-input" placeholder="e.g. Priya Sharma" autocomplete="name" maxlength="80" required>
               </div>
             </div>
 
@@ -157,11 +157,11 @@
               <div class="profile-field">
                 <label class="profile-field-label" for="pfGoal">Nutrition Goal</label>
                 <select id="pfGoal" class="profile-input">
-                  <option value="maintenance">Maintain Weight</option>
+                  <option value="maintain_weight">Maintain Weight</option>
                   <option value="weight_loss">Lose Weight</option>
                   <option value="weight_gain">Gain Weight</option>
                   <option value="muscle_gain">Build Muscle</option>
-                  <option value="general_health">General Wellness</option>
+                  <option value="general_wellness">General Wellness</option>
                 </select>
               </div>
             </div>
@@ -199,11 +199,21 @@
                 <span class="bmi-category" id="bmiPreviewCat"></span>
               </div>
               <div class="bmi-row">
-                <span class="bmi-label">Est. Daily Calorie Target:</span>
+                <span class="bmi-label">Est. BMR:</span>
+                <span class="bmi-val" id="bmrPreviewVal">--</span>
+                <span class="bmi-unit">kcal/day</span>
+              </div>
+              <div class="bmi-row">
+                <span class="bmi-label">Maintenance Calories:</span>
+                <span class="bmi-val" id="maintenancePreviewVal">--</span>
+                <span class="bmi-unit">kcal/day</span>
+              </div>
+              <div class="bmi-row">
+                <span class="bmi-label">Daily Calorie Target:</span>
                 <span class="bmi-val" id="calPreviewVal">--</span>
                 <span class="bmi-unit">kcal/day</span>
               </div>
-              <p class="bmi-note">Estimates are for general awareness only and not medical advice.</p>
+              <p class="bmi-note">Estimates use Mifflin-St Jeor equation. For general awareness only — not medical advice.</p>
             </div>
 
             <div class="profile-form-actions">

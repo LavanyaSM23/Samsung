@@ -167,9 +167,10 @@ def validate_profile_data(data: dict) -> Tuple[bool, List[str]]:
         except (TypeError, ValueError):
             errors.append("age must be a valid integer.")
 
-    # gender
-    if "gender" in data and data["gender"] is not None:
-        if data["gender"] not in VALID_GENDERS:
+    # gender (also accept 'sex' as alias for frontend compatibility)
+    gender_val = data.get("gender") or data.get("sex")
+    if gender_val is not None and gender_val != "":
+        if gender_val not in VALID_GENDERS:
             errors.append(
                 f"gender must be one of: {', '.join(sorted(VALID_GENDERS))}."
             )
@@ -199,9 +200,12 @@ def validate_profile_data(data: dict) -> Tuple[bool, List[str]]:
                 f"activity_level must be one of: {', '.join(sorted(VALID_ACTIVITY_LEVELS))}."
             )
 
-    # dietary_goal
-    if "dietary_goal" in data and data["dietary_goal"] is not None:
-        if data["dietary_goal"] not in VALID_DIETARY_GOALS:
+    # dietary_goal (also check nutrition_goal alias; normalize legacy frontend values)
+    _goal_legacy_map = {'maintenance': 'maintain_weight', 'general_health': 'general_wellness'}
+    goal_val = data.get("dietary_goal") or data.get("nutrition_goal")
+    if goal_val is not None and goal_val != "":
+        goal_val_normalized = _goal_legacy_map.get(goal_val, goal_val)
+        if goal_val_normalized not in VALID_DIETARY_GOALS:
             errors.append(
                 f"dietary_goal must be one of: {', '.join(sorted(VALID_DIETARY_GOALS))}."
             )
@@ -749,6 +753,18 @@ def _build_profile(data: dict) -> dict:
     user_id = str(data.get("user_id") or uuid.uuid4())
     d_name = str(data.get("display_name") or data.get("name") or "Unnamed Profile").strip()
 
+    # Normalize legacy frontend goal values to backend canonical values
+    _goal_legacy_map = {'maintenance': 'maintain_weight', 'general_health': 'general_wellness'}
+    raw_goal = data.get("dietary_goal") or data.get("nutrition_goal")
+    if raw_goal in _goal_legacy_map:
+        data = dict(data)  # don't mutate caller's dict
+        data["dietary_goal"] = _goal_legacy_map[raw_goal]
+        data["nutrition_goal"] = _goal_legacy_map[raw_goal]
+
+    # Normalize gender/sex aliases
+    gender_val = data.get("gender") or data.get("sex") or ""
+    sex_val = data.get("sex") or data.get("gender") or ""
+
     profile = {
         # Identity
         "user_id": user_id,
@@ -758,14 +774,14 @@ def _build_profile(data: dict) -> dict:
         "updated_at": now,
         # Demographics
         "age": data.get("age"),
-        "gender": data.get("gender") or data.get("sex"),
-        "sex": data.get("sex") or data.get("gender"),
+        "gender": gender_val or None,
+        "sex": sex_val or None,
         "height_cm": data.get("height_cm"),
         "weight_kg": data.get("weight_kg"),
         # Activity & Goal
         "activity_level": data.get("activity_level"),
-        "dietary_goal": data.get("dietary_goal") or data.get("nutrition_goal"),
-        "nutrition_goal": data.get("nutrition_goal") or data.get("dietary_goal"),
+        "dietary_goal": data.get("dietary_goal") or data.get("nutrition_goal") or "maintain_weight",
+        "nutrition_goal": data.get("nutrition_goal") or data.get("dietary_goal") or "maintain_weight",
         # Food preferences
         "dietary_preference": data.get("dietary_preference"),
         "preferred_cuisines": data.get("preferred_cuisines", []),

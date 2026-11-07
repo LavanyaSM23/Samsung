@@ -17,7 +17,7 @@ import pandas as pd
 import numpy as np
 
 import sys
-WORKSPACE = Path("c:/Samsung_Project")
+WORKSPACE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WORKSPACE))
 
 FEATURE_DIR = WORKSPACE / "data" / "processed" / "feature_store"
