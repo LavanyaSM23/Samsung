@@ -427,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSuitabilityScore(health);
   }
 
-  // Helper: Render Top Candidates Bar
+  // Helper: Render Top Candidates Bar (with Click-to-Select / Manual Correction)
   function renderCandidates(candidates) {
     candidatesList.innerHTML = '';
     const topCandidates = candidates.slice(0, 3);
@@ -437,14 +437,63 @@ document.addEventListener('DOMContentLoaded', () => {
       card.className = `candidate-card ${idx === 0 ? 'primary' : ''}`;
       const pct = (cand.confidence * 100).toFixed(1);
 
+      if (idx > 0) {
+        card.style.cursor = 'pointer';
+        card.title = `Click to switch dish to: ${cand.display_name}`;
+        card.addEventListener('click', () => {
+          selectFoodByName(cand.class_name, cand.display_name);
+        });
+      }
+
       card.innerHTML = `
         <div class="candidate-name">${cand.display_name}</div>
         <div class="candidate-meter">
           <div class="candidate-meter-fill" style="width: ${pct}%"></div>
         </div>
-        <div class="candidate-score">${pct}% match</div>
+        <div class="candidate-score">${pct}% match ${idx > 0 ? '· <span style="text-decoration:underline">Select</span>' : ''}</div>
       `;
       candidatesList.appendChild(card);
+    });
+  }
+
+  function selectFoodByName(className, displayName) {
+    if (!className) return;
+    showLoadingState();
+    fetch('/api/adjust-nutrition', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        class_name: className,
+        user_profile: activeProfileKey,
+        user_id: activeUserId || undefined,
+        portion_g: activePortionG || 100,
+      })
+    })
+    .then(res => res.json())
+    .then(res => {
+      if (res.success) {
+        if (!currentPredictionData) currentPredictionData = { prediction: {} };
+        const oldTopK = currentPredictionData.prediction?.top_k || [];
+        currentPredictionData.prediction = {
+          class_name: className,
+          display_name: displayName || className.replace(/_/g, ' ').toUpperCase(),
+          confidence: 1.0,
+          top_k: oldTopK,
+          match_type: res.data.metadata?.match_type || 'USER_CORRECTED'
+        };
+        currentPredictionData.nutrition = res.data.nutrition;
+        currentPredictionData.health_evaluation = res.data.health_evaluation;
+        currentPredictionData.metadata = res.data.metadata;
+        currentPredictionData.ambiguous_subtype = res.data.ambiguous_subtype || null;
+        renderAnalysisResults(currentPredictionData);
+      } else {
+        alert('Could not switch food: ' + (res.error || 'Unknown error'));
+        hideLoadingState();
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      hideLoadingState();
     });
   }
 
@@ -1343,6 +1392,33 @@ document.addEventListener('DOMContentLoaded', () => {
     labelHealthCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  // ============================================================
+  // Theme Toggle (Dark / Light Theme Support)
+  // ============================================================
+  const btnThemeToggle = document.getElementById('btnThemeToggle');
+  const themeToggleIcon = document.getElementById('themeToggleIcon');
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('nutrisense_theme', theme);
+    if (themeToggleIcon) {
+      themeToggleIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+    if (btnThemeToggle) {
+      btnThemeToggle.setAttribute('title', theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+    }
+  }
+
+  const savedTheme = localStorage.getItem('nutrisense_theme') || 'light';
+  applyTheme(savedTheme);
+
+  if (btnThemeToggle) {
+    btnThemeToggle.addEventListener('click', () => {
+      const cur = document.documentElement.getAttribute('data-theme') || 'light';
+      applyTheme(cur === 'dark' ? 'light' : 'dark');
+    });
+  }
+
   // Initial load: restore active user profile from localStorage
   if (activeUserId) {
     fetch(`/api/profile/${activeUserId}`)
@@ -1398,6 +1474,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const pfName = document.getElementById('pfName');
   const pfAllergies = document.getElementById('pfAllergies');
   const pfRestrictions = document.getElementById('pfRestrictions');
+  const pfBudget = document.getElementById('pfBudget');
+  const btnCorrectDish = document.getElementById('btnCorrectDish');
+
+  if (btnCorrectDish) {
+    btnCorrectDish.addEventListener('click', () => {
+      if (manualFoodSearchInput) {
+        manualFoodSearchInput.focus();
+        manualFoodSearchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
   const bmiPreviewCard = document.getElementById('bmiPreviewCard');
   const bmiPreviewVal = document.getElementById('bmiPreviewVal');
   const bmiPreviewCat = document.getElementById('bmiPreviewCat');
@@ -1522,6 +1609,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pfGoal) pfGoal.value = profile.nutrition_goal || 'maintenance';
     if (pfAllergies) pfAllergies.value = (profile.food_allergies || []).join(', ');
     if (pfRestrictions) pfRestrictions.value = (profile.food_restrictions || []).join(', ');
+    if (pfBudget) pfBudget.value = profile.budget || 'medium';
     if (btnCancelEdit) btnCancelEdit.classList.remove('hidden');
     if (btnDeleteProfile) btnDeleteProfile.classList.remove('hidden');
     if (profileSaveSuccess) profileSaveSuccess.classList.add('hidden');
@@ -1532,6 +1620,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function resetForm() {
     if (!profileForm) return;
     profileForm.reset();
+    if (pfBudget) pfBudget.value = 'medium';
     if (profileFormId) profileFormId.value = '';
     if (profileFormTitle) profileFormTitle.textContent = 'Create New Profile';
     if (btnCancelEdit) btnCancelEdit.classList.add('hidden');
@@ -1597,6 +1686,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activity_level: pfActivity ? pfActivity.value : 'sedentary',
         dietary_preference: pfDiet ? pfDiet.value : 'omnivore',
         nutrition_goal: pfGoal ? pfGoal.value : 'maintenance',
+        budget: pfBudget ? pfBudget.value : 'medium',
         food_allergies: allergiesRaw ? allergiesRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
         food_restrictions: restrictionsRaw ? restrictionsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
       };

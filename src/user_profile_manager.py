@@ -763,6 +763,7 @@ def _build_profile(data: dict) -> dict:
         "activity_level": data.get("activity_level"),
         "dietary_goal": data.get("dietary_goal"),
         # Food preferences
+        "dietary_preference": data.get("dietary_preference"),
         "preferred_cuisines": data.get("preferred_cuisines", []),
         "disliked_foods": data.get("disliked_foods", []),
         # Allergies & restrictions

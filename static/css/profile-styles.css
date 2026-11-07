@@ -371,3 +371,160 @@
   margin-bottom: 10px;
 }
 
+
+/* ============================================================
+   Dark Theme & Light Theme Styles
+   ============================================================ */
+.btn-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all var(--transition-fast);
+  margin-left: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-theme-toggle:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-emerald);
+  transform: scale(1.05);
+}
+
+/* Complete Dark Theme Overrides */
+[data-theme="dark"] {
+  --bg-primary: #0F172A;
+  --bg-secondary: #1E293B;
+  --bg-tertiary: #162032;
+  --bg-surface: #1E293B;
+  --bg-surface-elevated: #243044;
+  --border-subtle: #334155;
+  --border-light: #334155;
+  --border-glow: rgba(16, 185, 129, 0.35);
+  --border-active: #10B981;
+  --text-primary: #F1F5F9;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --accent-cyan: #38BDF8;
+  --accent-emerald: #10B981;
+  --gradient-card: linear-gradient(145deg, #1E293B 0%, #162032 100%);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .navbar {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+[data-theme="dark"] .scanner-card {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-theme="dark"] .dropzone {
+  background: var(--bg-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-theme="dark"] .disclaimer-banner {
+  background: rgba(45, 26, 3, 0.5) !important;
+  border-color: rgba(217, 119, 6, 0.35) !important;
+}
+
+[data-theme="dark"] .disclaimer-text {
+  color: #FCD34D !important;
+}
+
+[data-theme="dark"] .manual-search-input,
+[data-theme="dark"] .profile-input,
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-theme="dark"] .candidate-card {
+  background: var(--bg-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-theme="dark"] .candidate-name {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .portion-control-card,
+[data-theme="dark"] .micros-panel,
+[data-theme="dark"] .suitability-card {
+  background: var(--bg-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-theme="dark"] .label-nutrition-table th {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .label-nutrition-table td {
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .profile-list-item {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-theme="dark"] .profile-list-item:hover {
+  background: rgba(16, 185, 129, 0.12) !important;
+}
+
+[data-theme="dark"] .profile-list-name {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .profile-field-label {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .app-footer {
+  background: var(--bg-surface) !important;
+  border-top-color: var(--border-subtle) !important;
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .macro-card {
+  background: var(--bg-tertiary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-theme="dark"] .search-result-item {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .search-result-item:hover {
+  background: var(--bg-tertiary) !important;
+}
+
+[data-theme="dark"] .search-results-dropdown {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-subtle) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important;
+}

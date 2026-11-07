@@ -44,13 +44,16 @@
         <button class="nav-tab" id="tabProfile" data-view="profileView">My Nutrition Profile</button>
       </nav>
 
-      <!-- Active User Indicator -->
+      <!-- Active User Indicator & Theme Toggle -->
       <div class="profile-selector-container" id="activeUserIndicator">
         <div class="active-user-pill" id="activeUserPill">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <span id="activeUserName">No Profile Set</span>
         </div>
         <button type="button" class="btn-profile-switch" id="btnSwitchProfile" title="Switch Profile">Change</button>
+        <button type="button" class="btn-theme-toggle" id="btnThemeToggle" title="Toggle Dark/Light Mode">
+          <span id="themeToggleIcon">🌙</span>
+        </button>
       </div>
     </div>
   </header>
@@ -177,6 +180,7 @@
                 <div class="title-with-badge">
                   <h2 class="prediction-title" id="primaryFoodName">Samosa</h2>
                   <span class="badge badge-confidence" id="primaryConfidenceBadge">94.8% Conf.</span>
+                  <button type="button" class="btn btn-sm btn-secondary" id="btnCorrectDish" style="font-size:0.75rem; padding:3px 8px; margin-left:8px;" title="Manually correct or change food item">✏️ Correct</button>
                 </div>
               </div>
               <div class="match-meta" id="matchMetaContainer">
@@ -565,11 +569,20 @@
               </div>
             </div>
 
-            <div class="profile-form-row">
+            <div class="profile-form-row two-col">
               <div class="profile-field">
                 <label class="profile-field-label" for="pfRestrictions">Medical / Dietary Restrictions <span class="optional-label">(comma-separated)</span></label>
                 <input type="text" id="pfRestrictions" class="profile-input" placeholder="e.g. diabetic, hypertension, low sodium">
-                <span class="profile-field-hint">e.g. diabetic, hypertension, celiac, lactose intolerant, low sodium</span>
+                <span class="profile-field-hint">e.g. diabetic, hypertension, celiac</span>
+              </div>
+              <div class="profile-field">
+                <label class="profile-field-label" for="pfBudget">Budget Preference <span class="optional-label">(optional)</span></label>
+                <select id="pfBudget" class="profile-input">
+                  <option value="medium">Medium (Standard)</option>
+                  <option value="low">Low (Budget-Friendly)</option>
+                  <option value="high">High (Premium)</option>
+                </select>
+                <span class="profile-field-hint">Used for affordable Indian alternatives</span>
               </div>
             </div>
 
