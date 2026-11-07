@@ -153,7 +153,10 @@ def validate_profile_data(data: dict) -> Tuple[bool, List[str]]:
     """
     errors: List[str] = []
 
-    # display_name — required
+    # display_name — required; accept 'name' fallback if provided
+    if not data.get("display_name") and data.get("name"):
+        data["display_name"] = str(data["name"]).strip()
+
     name = data.get("display_name", "")
     if not name or not str(name).strip():
         errors.append("display_name is required and cannot be empty.")

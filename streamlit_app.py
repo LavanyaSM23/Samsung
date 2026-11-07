@@ -30,9 +30,10 @@ from PIL import Image
 import streamlit as st
 
 # ── Page config must be first Streamlit call ──────────────────────────────────
+_logo_file = Path(__file__).resolve().parent / "static" / "logo.png"
 st.set_page_config(
     page_title="NutriSense AI — Intelligent Nutrition & Meal Planning",
-    page_icon="🥗",
+    page_icon=str(_logo_file) if _logo_file.exists() else "🥗",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -310,9 +311,17 @@ _init_session()
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     # Theme toggle row
-    _theme_col1, _theme_col2 = st.columns([2, 1])
+    _theme_col1, _theme_col2 = st.columns([2.5, 1])
     with _theme_col1:
-        st.markdown("## 🥗 NutriSense AI")
+        _logo_path = WORKSPACE_ROOT / "static" / "logo.png"
+        if _logo_path.exists():
+            _c_img, _c_txt = st.columns([1, 3.2])
+            with _c_img:
+                st.image(str(_logo_path), width=42)
+            with _c_txt:
+                st.markdown("### NutriSense AI")
+        else:
+            st.markdown("## 🥗 NutriSense AI")
     with _theme_col2:
         _cur_theme = st.session_state.get("theme", "light")
         _theme_label = "🌙" if _cur_theme == "light" else "☀️"

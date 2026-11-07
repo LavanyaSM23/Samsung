@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (activeUserPill) activeUserPill.style.background = 'rgba(107, 114, 128, 0.08)';
       return;
     }
-    const displayName = profile.name || (profile.sex ? (profile.sex === 'male' ? 'Male' : 'Female') : '') + 
+    const displayName = profile.display_name || profile.name || (profile.sex ? (profile.sex === 'male' ? 'Male' : 'Female') : '') + 
                         (profile.age ? `, ${profile.age}y` : '');
     if (activeUserName) activeUserName.textContent = displayName || 'Profile Active';
   }
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (profileRdaBadge) profileRdaBadge.textContent = '-- kcal / day';
       return;
     }
-    const name = profile.name || ((profile.sex || '') + (profile.age ? ` (${profile.age}y)` : ''));
+    const name = profile.display_name || profile.name || ((profile.sex || '') + (profile.age ? ` (${profile.age}y)` : ''));
     if (profileTitleDisplay) profileTitleDisplay.textContent = name || 'User Profile';
     
     // Build description from profile data
@@ -1599,7 +1599,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!profileForm) return;
     if (profileFormId) profileFormId.value = profile.user_id || '';
     if (profileFormTitle) profileFormTitle.textContent = 'Edit Profile';
-    if (pfName) pfName.value = profile.name || '';
+    if (pfName) pfName.value = profile.display_name || profile.name || '';
     if (pfAge) pfAge.value = profile.age || '';
     if (pfSex) pfSex.value = profile.sex || '';
     if (pfHeight) pfHeight.value = profile.height_cm || '';
@@ -1676,9 +1676,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // Build payload
       const allergiesRaw = pfAllergies ? pfAllergies.value.trim() : '';
       const restrictionsRaw = pfRestrictions ? pfRestrictions.value.trim() : '';
+      const rawName = pfName ? pfName.value.trim() : '';
+      const finalName = rawName || 'User Profile';
 
       const payload = {
-        name: pfName ? pfName.value.trim() : '',
+        name: finalName,
+        display_name: finalName,
         age: pfAge && pfAge.value ? parseInt(pfAge.value) : null,
         sex: pfSex ? pfSex.value : '',
         height_cm: pfHeight && pfHeight.value ? parseFloat(pfHeight.value) : null,

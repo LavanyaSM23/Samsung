@@ -169,6 +169,19 @@ def run_tests():
     from src.user_profile_manager import list_profiles
 
     profs = list_profiles()
+    if not profs:
+        from src.user_profile_manager import create_profile
+        create_profile({
+            "display_name": "Priya Sharma",
+            "age": 28,
+            "gender": "female",
+            "height_cm": 165.0,
+            "weight_kg": 60.0,
+            "activity_level": "moderately_active",
+            "dietary_goal": "general_wellness",
+            "dietary_preference": "vegetarian",
+        })
+        profs = list_profiles()
     record("8.01 UI profile list retrieves valid database records", isinstance(profs, list) and len(profs) > 0)
 
     test_uid = profs[0]["user_id"]
