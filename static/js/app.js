@@ -7,7 +7,9 @@
 document.addEventListener('DOMContentLoaded', () => {
   // State
   let currentPredictionData = null;
-  let activeProfileKey = 'adult_male_sedentary';
+  let activeProfileKey = 'adult_male_sedentary';  // ICMR predefined key (fallback)
+  let activeUserId = localStorage.getItem('nutrisense_active_user_id') || null;
+  let activeUserProfile = null;  // Full user profile object
   let activeSubtypeId = null;
   let activePortionG = 100;
   let debounceTimer = null;
@@ -15,7 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements - Navigation
   const navTabs = document.querySelectorAll('.nav-tab');
   const viewSections = document.querySelectorAll('.view-section');
-  const profileSelect = document.getElementById('healthProfileSelect');
+  // Active user indicator in navbar
+  const activeUserPill = document.getElementById('activeUserPill');
+  const activeUserName = document.getElementById('activeUserName');
+  const btnSwitchProfile = document.getElementById('btnSwitchProfile');
 
   // Scanner View Elements
   const dropzone = document.getElementById('imageDropzone');
@@ -103,7 +108,12 @@ document.addEventListener('DOMContentLoaded', () => {
     tab.addEventListener('click', () => {
       const targetView = tab.getAttribute('data-view');
       navTabs.forEach(t => t.classList.remove('active'));
-      viewSections.forEach(s => s.classList.remove('active'));
+      // Only hide/show actual view-sections that are managed by nav (not display:none ones)
+      document.querySelectorAll('.view-section').forEach(s => {
+        if (!['samplesView','catalogView','benchmarksView'].includes(s.id)) {
+          s.classList.remove('active');
+        }
+      });
 
       tab.classList.add('active');
       const activeSection = document.getElementById(targetView);
@@ -111,39 +121,69 @@ document.addEventListener('DOMContentLoaded', () => {
         activeSection.classList.add('active');
       }
 
-      if (targetView === 'samplesView') {
-        loadDemoGallery();
-      } else if (targetView === 'catalogView') {
-        loadFoodCatalog();
-      } else if (targetView === 'benchmarksView') {
-        loadBenchmarksKPI();
+      if (targetView === 'profileView') {
+        loadProfileList();
       }
     });
   });
 
-  // 2. Health Profile Selection
-  profileSelect.addEventListener('change', (e) => {
-    activeProfileKey = e.target.value;
-    updateProfileMetadataDisplay(activeProfileKey);
+  // 2. Active Profile / User Display
+  if (btnSwitchProfile) {
+    btnSwitchProfile.addEventListener('click', () => {
+      // Switch to Profile tab
+      const profileTab = document.getElementById('tabProfile');
+      if (profileTab) profileTab.click();
+    });
+  }
 
-    // If active food is loaded, recalculate nutrition & health score
-    if (currentPredictionData && currentPredictionData.prediction) {
-      recalculateAdjustedNutrition();
+  function updateNavbarUserDisplay(profile) {
+    if (!profile) {
+      if (activeUserName) activeUserName.textContent = 'No Profile Set';
+      if (activeUserPill) activeUserPill.style.background = 'rgba(107, 114, 128, 0.08)';
+      return;
     }
-  });
+    const displayName = profile.name || (profile.sex ? (profile.sex === 'male' ? 'Male' : 'Female') : '') + 
+                        (profile.age ? `, ${profile.age}y` : '');
+    if (activeUserName) activeUserName.textContent = displayName || 'Profile Active';
+  }
 
-  function updateProfileMetadataDisplay(key) {
-    fetch('/api/profiles')
-      .then(res => res.json())
-      .then(profiles => {
-        const found = profiles.find(p => p.key === key);
-        if (found) {
-          profileTitleDisplay.textContent = found.title;
-          profileDescDisplay.textContent = found.description;
-          profileRdaBadge.textContent = `${found.calories_target.toLocaleString()} kcal / day`;
-        }
-      })
-      .catch(err => console.error('Error fetching profile metadata:', err));
+  function updateProfileCardDisplay(profile) {
+    if (!profile) {
+      if (profileTitleDisplay) profileTitleDisplay.textContent = 'No Profile Set';
+      if (profileDescDisplay) profileDescDisplay.textContent = 'Set up your profile in My Nutrition Profile for personalised suitability scores.';
+      if (profileRdaBadge) profileRdaBadge.textContent = '-- kcal / day';
+      return;
+    }
+    const name = profile.name || ((profile.sex || '') + (profile.age ? ` (${profile.age}y)` : ''));
+    if (profileTitleDisplay) profileTitleDisplay.textContent = name || 'User Profile';
+    
+    // Build description from profile data
+    let desc = '';
+    if (profile.dietary_preference) desc += profile.dietary_preference.charAt(0).toUpperCase() + profile.dietary_preference.slice(1) + ' • ';
+    if (profile.activity_level) desc += profile.activity_level.replace(/_/g, ' ') + ' • ';
+    if (profile.nutrition_goal) desc += profile.nutrition_goal.replace(/_/g, ' ');
+    if (profileDescDisplay) profileDescDisplay.textContent = desc || 'Personal profile active.';
+    
+    // Show calorie target from computed data
+    if (profile.daily_calorie_target) {
+      if (profileRdaBadge) profileRdaBadge.textContent = `${Math.round(profile.daily_calorie_target).toLocaleString()} kcal / day`;
+    } else if (profileRdaBadge) {
+      profileRdaBadge.textContent = '-- kcal / day';
+    }
+    
+    // Map to ICMR profile key for backend compatibility
+    activeProfileKey = deriveIcmrKey(profile);
+  }
+
+  function deriveIcmrKey(profile) {
+    // Map user profile to nearest ICMR predefined key for backend suitability scoring
+    if (!profile) return 'adult_male_sedentary';
+    const restrictions = (profile.food_restrictions || []).map(r => r.toLowerCase());
+    if (restrictions.some(r => r.includes('diabet'))) return 'diabetic_adult';
+    if (restrictions.some(r => r.includes('hypertens') || r.includes('blood pressure'))) return 'hypertensive_adult';
+    if (profile.nutrition_goal === 'weight_loss' || profile.nutrition_goal === 'weight_gain') return 'weight_management';
+    if (profile.sex === 'female') return 'adult_female_sedentary';
+    return 'adult_male_sedentary';
   }
 
   // 3. Image Upload Handling (Drag & Drop + File Select)
@@ -250,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_profile', activeProfileKey);
+    if (activeUserId) formData.append('user_id', activeUserId);
 
     fetch('/api/predict', {
       method: 'POST',
@@ -729,6 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({
         class_name: className,
         user_profile: activeProfileKey,
+        user_id: activeUserId || undefined,
         portion_g: activePortionG,
         selected_subtype_id: activeSubtypeId
       })
@@ -1212,6 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_profile: activeProfileKey,
+          user_id: activeUserId || undefined,
           nutrition: confirmedNutrition,
           user_corrections: labelUserCorrections
         })
@@ -1300,6 +1343,324 @@ document.addEventListener('DOMContentLoaded', () => {
     labelHealthCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // Initial load
-  updateProfileMetadataDisplay(activeProfileKey);
+  // Initial load: restore active user profile from localStorage
+  if (activeUserId) {
+    fetch(`/api/profile/${activeUserId}`)
+      .then(res => res.json())
+      .then(payload => {
+        if (payload.success && payload.data) {
+          activeUserProfile = payload.data;
+          updateNavbarUserDisplay(activeUserProfile);
+          updateProfileCardDisplay(activeUserProfile);
+        } else {
+          // Profile no longer exists - clear stored id
+          activeUserId = null;
+          localStorage.removeItem('nutrisense_active_user_id');
+          updateNavbarUserDisplay(null);
+          updateProfileCardDisplay(null);
+        }
+      })
+      .catch(() => {
+        updateNavbarUserDisplay(null);
+        updateProfileCardDisplay(null);
+      });
+  } else {
+    updateNavbarUserDisplay(null);
+    updateProfileCardDisplay(null);
+  }
+
+  // ============================================================
+  // Profile Management (My Nutrition Profile tab)
+  // ============================================================
+  const profileForm = document.getElementById('profileForm');
+  const profileFormId = document.getElementById('profileFormId');
+  const profileFormTitle = document.getElementById('profileFormTitle');
+  const profileFormStatus = document.getElementById('profileFormStatus');
+  const profileFormErrors = document.getElementById('profileFormErrors');
+  const profileSaveSuccess = document.getElementById('profileSaveSuccess');
+  const profileSaveMsg = document.getElementById('profileSaveMsg');
+  const btnNewProfile = document.getElementById('btnNewProfile');
+  const btnCancelEdit = document.getElementById('btnCancelEdit');
+  const btnDeleteProfile = document.getElementById('btnDeleteProfile');
+  const btnSaveProfile = document.getElementById('btnSaveProfile');
+  const profileListContainer = document.getElementById('profileListContainer');
+  const profileListEmpty = document.getElementById('profileListEmpty');
+  const profileListItems = document.getElementById('profileListItems');
+
+  // BMI preview inputs
+  const pfHeight = document.getElementById('pfHeight');
+  const pfWeight = document.getElementById('pfWeight');
+  const pfAge = document.getElementById('pfAge');
+  const pfSex = document.getElementById('pfSex');
+  const pfActivity = document.getElementById('pfActivity');
+  const pfDiet = document.getElementById('pfDiet');
+  const pfGoal = document.getElementById('pfGoal');
+  const pfName = document.getElementById('pfName');
+  const pfAllergies = document.getElementById('pfAllergies');
+  const pfRestrictions = document.getElementById('pfRestrictions');
+  const bmiPreviewCard = document.getElementById('bmiPreviewCard');
+  const bmiPreviewVal = document.getElementById('bmiPreviewVal');
+  const bmiPreviewCat = document.getElementById('bmiPreviewCat');
+  const calPreviewVal = document.getElementById('calPreviewVal');
+  const btnGoToProfile = document.getElementById('btnGoToProfile');
+
+  if (btnGoToProfile) {
+    btnGoToProfile.addEventListener('click', () => {
+      const tab = document.getElementById('tabProfile');
+      if (tab) tab.click();
+    });
+  }
+
+  function computeBmiPreview() {
+    if (!pfHeight || !pfWeight) return;
+    const h = parseFloat(pfHeight.value);
+    const w = parseFloat(pfWeight.value);
+    if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+      if (bmiPreviewCard) bmiPreviewCard.classList.add('hidden');
+      return;
+    }
+    const bmi = w / ((h / 100) ** 2);
+    let cat = 'Normal weight';
+    if (bmi < 18.5) cat = 'Underweight';
+    else if (bmi < 25.0) cat = 'Normal weight';
+    else if (bmi < 30.0) cat = 'Overweight';
+    else cat = 'Obese';
+
+    if (bmiPreviewVal) bmiPreviewVal.textContent = bmi.toFixed(1);
+    if (bmiPreviewCat) bmiPreviewCat.textContent = cat;
+
+    // Estimate TDEE (Mifflin-St Jeor + activity multiplier)
+    const sex = pfSex ? pfSex.value : '';
+    const age = parseFloat(pfAge ? pfAge.value : NaN);
+    if (!isNaN(age) && age > 0) {
+      let bmr = 0;
+      if (sex === 'male') bmr = 10 * w + 6.25 * h - 5 * age + 5;
+      else if (sex === 'female') bmr = 10 * w + 6.25 * h - 5 * age - 161;
+      else bmr = 10 * w + 6.25 * h - 5 * age - 78;  // average
+
+      const activityMap = {
+        sedentary: 1.2, lightly_active: 1.375, moderately_active: 1.55, very_active: 1.725, extra_active: 1.9
+      };
+      const actKey = pfActivity ? pfActivity.value : 'sedentary';
+      const mult = activityMap[actKey] || 1.2;
+      const tdee = Math.round(bmr * mult);
+      if (calPreviewVal) calPreviewVal.textContent = tdee.toLocaleString();
+    } else {
+      if (calPreviewVal) calPreviewVal.textContent = '--';
+    }
+
+    if (bmiPreviewCard) bmiPreviewCard.classList.remove('hidden');
+  }
+
+  [pfHeight, pfWeight, pfAge, pfSex, pfActivity].forEach(el => {
+    if (el) el.addEventListener('input', computeBmiPreview);
+  });
+
+  function loadProfileList() {
+    if (!profileListItems) return;
+    fetch('/api/user-profiles')
+      .then(res => res.json())
+      .then(payload => {
+        if (!payload.success) return;
+        const profiles = payload.data || [];
+        profileListItems.innerHTML = '';
+        if (profiles.length === 0) {
+          if (profileListEmpty) profileListEmpty.style.display = '';
+          profileListItems.style.display = 'none';
+          return;
+        }
+        if (profileListEmpty) profileListEmpty.style.display = 'none';
+        profileListItems.style.display = '';
+
+        profiles.forEach(p => {
+          const item = document.createElement('div');
+          item.className = `profile-list-item${activeUserId === p.user_id ? ' active-profile' : ''}`;
+          const metaParts = [];
+          if (p.age) metaParts.push(`${p.age}y`);
+          if (p.sex) metaParts.push(p.sex);
+          if (p.activity_level) metaParts.push(p.activity_level.replace(/_/g, ' '));
+
+          item.innerHTML = `
+            <div>
+              <div class="profile-list-name">${p.name || 'User'}</div>
+              <div class="profile-list-meta">${metaParts.join(' · ')}</div>
+            </div>
+            ${activeUserId === p.user_id ? '<span class="profile-list-active-badge">Active</span>' : ''}
+          `;
+
+          item.addEventListener('click', () => {
+            // Load profile into form for editing and set as active
+            fetchAndEditProfile(p.user_id);
+          });
+          profileListItems.appendChild(item);
+        });
+      })
+      .catch(err => console.error('Error loading profiles:', err));
+  }
+
+  function fetchAndEditProfile(userId) {
+    fetch(`/api/profile/${userId}`)
+      .then(res => res.json())
+      .then(payload => {
+        if (!payload.success) return;
+        populateFormForEdit(payload.data);
+      })
+      .catch(err => console.error('Error fetching profile:', err));
+  }
+
+  function populateFormForEdit(profile) {
+    if (!profileForm) return;
+    if (profileFormId) profileFormId.value = profile.user_id || '';
+    if (profileFormTitle) profileFormTitle.textContent = 'Edit Profile';
+    if (pfName) pfName.value = profile.name || '';
+    if (pfAge) pfAge.value = profile.age || '';
+    if (pfSex) pfSex.value = profile.sex || '';
+    if (pfHeight) pfHeight.value = profile.height_cm || '';
+    if (pfWeight) pfWeight.value = profile.weight_kg || '';
+    if (pfActivity) pfActivity.value = profile.activity_level || 'sedentary';
+    if (pfDiet) pfDiet.value = profile.dietary_preference || 'omnivore';
+    if (pfGoal) pfGoal.value = profile.nutrition_goal || 'maintenance';
+    if (pfAllergies) pfAllergies.value = (profile.food_allergies || []).join(', ');
+    if (pfRestrictions) pfRestrictions.value = (profile.food_restrictions || []).join(', ');
+    if (btnCancelEdit) btnCancelEdit.classList.remove('hidden');
+    if (btnDeleteProfile) btnDeleteProfile.classList.remove('hidden');
+    if (profileSaveSuccess) profileSaveSuccess.classList.add('hidden');
+    if (profileFormErrors) { profileFormErrors.innerHTML = ''; profileFormErrors.classList.add('hidden'); }
+    computeBmiPreview();
+  }
+
+  function resetForm() {
+    if (!profileForm) return;
+    profileForm.reset();
+    if (profileFormId) profileFormId.value = '';
+    if (profileFormTitle) profileFormTitle.textContent = 'Create New Profile';
+    if (btnCancelEdit) btnCancelEdit.classList.add('hidden');
+    if (btnDeleteProfile) btnDeleteProfile.classList.add('hidden');
+    if (profileFormErrors) { profileFormErrors.innerHTML = ''; profileFormErrors.classList.add('hidden'); }
+    if (profileSaveSuccess) profileSaveSuccess.classList.add('hidden');
+    if (bmiPreviewCard) bmiPreviewCard.classList.add('hidden');
+  }
+
+  if (btnNewProfile) {
+    btnNewProfile.addEventListener('click', resetForm);
+  }
+
+  if (btnCancelEdit) {
+    btnCancelEdit.addEventListener('click', resetForm);
+  }
+
+  if (btnDeleteProfile) {
+    btnDeleteProfile.addEventListener('click', () => {
+      const uid = profileFormId ? profileFormId.value : '';
+      if (!uid) return;
+      if (!confirm('Delete this profile? This action cannot be undone.')) return;
+
+      fetch(`/api/profile/${uid}`, { method: 'DELETE' })
+        .then(res => res.json())
+        .then(payload => {
+          if (!payload.success) {
+            alert('Delete failed: ' + (payload.error || 'Unknown error'));
+            return;
+          }
+          if (activeUserId === uid) {
+            activeUserId = null;
+            activeUserProfile = null;
+            localStorage.removeItem('nutrisense_active_user_id');
+            updateNavbarUserDisplay(null);
+            updateProfileCardDisplay(null);
+          }
+          resetForm();
+          loadProfileList();
+        })
+        .catch(err => alert('Delete error: ' + err.message));
+    });
+  }
+
+  if (profileForm) {
+    profileForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (profileFormErrors) { profileFormErrors.innerHTML = ''; profileFormErrors.classList.add('hidden'); }
+      if (profileSaveSuccess) profileSaveSuccess.classList.add('hidden');
+
+      const uid = profileFormId ? profileFormId.value.trim() : '';
+
+      // Build payload
+      const allergiesRaw = pfAllergies ? pfAllergies.value.trim() : '';
+      const restrictionsRaw = pfRestrictions ? pfRestrictions.value.trim() : '';
+
+      const payload = {
+        name: pfName ? pfName.value.trim() : '',
+        age: pfAge && pfAge.value ? parseInt(pfAge.value) : null,
+        sex: pfSex ? pfSex.value : '',
+        height_cm: pfHeight && pfHeight.value ? parseFloat(pfHeight.value) : null,
+        weight_kg: pfWeight && pfWeight.value ? parseFloat(pfWeight.value) : null,
+        activity_level: pfActivity ? pfActivity.value : 'sedentary',
+        dietary_preference: pfDiet ? pfDiet.value : 'omnivore',
+        nutrition_goal: pfGoal ? pfGoal.value : 'maintenance',
+        food_allergies: allergiesRaw ? allergiesRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
+        food_restrictions: restrictionsRaw ? restrictionsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
+      };
+
+      const isEdit = Boolean(uid);
+      const url = isEdit ? `/api/profile/${uid}` : '/api/profile/create';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      if (btnSaveProfile) { btnSaveProfile.disabled = true; btnSaveProfile.textContent = 'Saving…'; }
+
+      fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(res => res.json())
+        .then(resp => {
+          if (btnSaveProfile) { btnSaveProfile.disabled = false; btnSaveProfile.textContent = 'Save Profile'; }
+
+          if (!resp.success) {
+            const errs = resp.errors || [resp.error || 'Unknown error'];
+            if (profileFormErrors) {
+              profileFormErrors.innerHTML = errs.map(e => `<div class="profile-form-error-item">⚠ ${e}</div>`).join('');
+              profileFormErrors.classList.remove('hidden');
+            }
+            return;
+          }
+
+          const savedProfile = resp.data;
+          // Update form id (for new profiles)
+          if (profileFormId) profileFormId.value = savedProfile.user_id || '';
+          if (profileFormTitle) profileFormTitle.textContent = 'Edit Profile';
+          if (btnCancelEdit) btnCancelEdit.classList.remove('hidden');
+          if (btnDeleteProfile) btnDeleteProfile.classList.remove('hidden');
+
+          // Set as active user
+          activeUserId = savedProfile.user_id;
+          activeUserProfile = savedProfile;
+          localStorage.setItem('nutrisense_active_user_id', activeUserId);
+          updateNavbarUserDisplay(activeUserProfile);
+          updateProfileCardDisplay(activeUserProfile);
+
+          // Reload profile list
+          loadProfileList();
+
+          if (profileSaveSuccess) {
+            const action = isEdit ? 'updated' : 'created';
+            const name = savedProfile.name || 'Profile';
+            if (profileSaveMsg) profileSaveMsg.textContent = `${name} ${action} and set as active.`;
+            profileSaveSuccess.classList.remove('hidden');
+            setTimeout(() => profileSaveSuccess.classList.add('hidden'), 4000);
+          }
+
+          // Recalculate if food data is loaded
+          if (currentPredictionData && currentPredictionData.prediction) {
+            recalculateAdjustedNutrition();
+          }
+        })
+        .catch(err => {
+          if (btnSaveProfile) { btnSaveProfile.disabled = false; btnSaveProfile.textContent = 'Save Profile'; }
+          alert('Save failed: ' + err.message);
+        });
+    });
+  }
+
 });
+

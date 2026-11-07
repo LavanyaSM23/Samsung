@@ -1,0 +1,373 @@
+
+/* ============================================================
+   Active User Indicator (Navbar)
+   ============================================================ */
+.active-user-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-emerald);
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active-user-pill svg {
+  flex-shrink: 0;
+}
+
+.btn-profile-switch {
+  margin-left: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-profile-switch:hover {
+  background: var(--bg-secondary);
+  color: var(--accent-emerald);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* ============================================================
+   Profile View Layout
+   ============================================================ */
+.profile-view-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .profile-view-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Profile List Panel
+   ============================================================ */
+.profile-list-panel {
+  padding: 20px;
+}
+
+.profile-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: var(--bg-primary);
+}
+
+.profile-list-item:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.profile-list-item.active-profile {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.07);
+}
+
+.profile-list-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.profile-list-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.profile-list-active-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-emerald);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ============================================================
+   Profile Create / Edit Form
+   ============================================================ */
+.profile-form-panel {
+  padding: 24px;
+}
+
+.profile-form-row {
+  margin-bottom: 16px;
+}
+
+.profile-form-row.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 600px) {
+  .profile-form-row.two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.profile-field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.required-star {
+  color: var(--accent-rose);
+}
+
+.optional-label {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.profile-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-family: var(--font-primary);
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.profile-input:focus {
+  outline: none;
+  border-color: var(--accent-emerald);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.profile-input.input-error {
+  border-color: var(--accent-rose);
+}
+
+.profile-field-hint {
+  font-size: 0.69rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* BMI Preview Card */
+.bmi-preview-card {
+  margin: 16px 0;
+  padding: 14px 16px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-sm);
+}
+
+.bmi-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.bmi-row:last-of-type {
+  margin-bottom: 8px;
+}
+
+.bmi-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  min-width: 170px;
+}
+
+.bmi-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent-emerald);
+}
+
+.bmi-category {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  background: rgba(0,0,0,0.05);
+  border-radius: 10px;
+}
+
+.bmi-unit {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.bmi-note {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Form Actions */
+.profile-form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.btn-danger {
+  background: rgba(244, 63, 94, 0.1);
+  border: 1.5px solid rgba(244, 63, 94, 0.3);
+  color: var(--accent-rose);
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: all 0.15s ease;
+}
+
+.btn-danger:hover {
+  background: rgba(244, 63, 94, 0.18);
+}
+
+/* Form Errors */
+.profile-form-errors {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: rgba(244, 63, 94, 0.07);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  border-radius: var(--radius-sm);
+}
+
+.profile-form-error-item {
+  font-size: 0.78rem;
+  color: var(--accent-rose);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.profile-form-error-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Save Success Banner */
+.profile-save-success {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-emerald);
+}
+
+/* Profile card in scanner: "go to profile" link style */
+.profile-card .btn-secondary {
+  font-size: 0.72rem;
+  padding: 5px 10px;
+}
+
+/* Personalized RDA summary below suitability score */
+.rda-compare-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.78rem;
+}
+
+.rda-compare-row:last-child {
+  border-bottom: none;
+}
+
+.rda-nutrient-name {
+  min-width: 110px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.rda-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--border-light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.rda-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent-emerald);
+  transition: width 0.4s ease;
+}
+
+.rda-bar-fill.over {
+  background: var(--accent-rose);
+}
+
+.rda-pct-label {
+  min-width: 44px;
+  text-align: right;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+}
+
+.rda-compare-panel {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(16, 185, 129, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: var(--radius-sm);
+}
+
+.rda-compare-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+

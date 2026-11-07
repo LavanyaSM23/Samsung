@@ -514,7 +514,7 @@ if selected_section == "🏠 Home":
             <p>Your personalized Indian nutrition workspace. Backed by ICMR-NIN 2020 RDA & IFCT 2017 standards for clinical accuracy and zero nutrient hallucinations.</p>
             <div>
                 <span class="badge-pill badge-emerald">🎯 Goal: {goal_str}</span>
-                <span class="badge-pill badge-blue">🥗 South Asian Consensus Standards</span>
+                <span class="badge-pill badge-blue">:)  South Asian Consensus Standards</span>
                 <span class="badge-pill badge-purple">🛡️ Pre-Ranking Safety Filter Active</span>
             </div>
         </div>
@@ -522,7 +522,7 @@ if selected_section == "🏠 Home":
     else:
         st.markdown("""
         <div class="health-hero">
-            <h2>Welcome to NutriSense AI 🥗</h2>
+            <h2>Welcome to NutriSense AI N:)</h2>
             <p>Personalized Indian Nutrition, Visual Food Intelligence & Clinical Diet Planning.</p>
             <div>
                 <span class="badge-pill badge-emerald">ICMR-NIN 2020</span>
@@ -532,7 +532,7 @@ if selected_section == "🏠 Home":
         </div>
         """, unsafe_allow_html=True)
 
-    st.title("🥗 NutriSense AI")
+    st.title(":) NutriSense AI")
     st.subheader("Personalized Indian Nutrition, Visual Food Intelligence & Clinical Diet Planning")
 
     # Live database metrics

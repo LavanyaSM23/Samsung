@@ -44,8 +44,19 @@ def _get_reader():
             ssl._create_default_https_context = ssl._create_unverified_context
         except Exception:
             pass
+        from pathlib import Path
         import easyocr
-        _ocr_reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+        model_dir = (Path(__file__).resolve().parent.parent / "models" / "easyocr").resolve()
+        user_net_dir = model_dir / "user_network"
+        model_dir.mkdir(parents=True, exist_ok=True)
+        user_net_dir.mkdir(parents=True, exist_ok=True)
+        _ocr_reader = easyocr.Reader(
+            ["en"],
+            gpu=False,
+            verbose=False,
+            model_storage_directory=str(model_dir),
+            user_network_directory=str(user_net_dir),
+        )
     return _ocr_reader
 
 

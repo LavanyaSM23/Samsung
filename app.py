@@ -759,7 +759,6 @@ def api_delete_profile(user_id):
 
 
 @app.route("/api/user-profiles", methods=["GET"])
-@app.route("/api/profiles", methods=["GET"])
 def api_list_profiles():
     """GET /api/user-profiles — list all user profiles (id + display_name + created_at)."""
     try:
